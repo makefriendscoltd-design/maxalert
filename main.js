@@ -225,15 +225,16 @@ function showDashboard() {
 function createPostitWindow() {
   const { workArea } = screen.getPrimaryDisplay()
   const width = 340
+  const saved = store.data.settings.postitPos
   postitWin = new BrowserWindow({
-    x: workArea.x + workArea.width - width,
-    y: workArea.y,
+    x: saved ? saved.x : workArea.x + workArea.width - width,
+    y: saved ? saved.y : workArea.y,
     width,
     height: workArea.height,
     frame: false,
     transparent: true,
     resizable: false,
-    movable: false,
+    movable: true,
     skipTaskbar: true,
     focusable: false,
     hasShadow: false,
@@ -244,6 +245,17 @@ function createPostitWindow() {
   postitWin.setIgnoreMouseEvents(true, { forward: true })
   postitWin.loadFile('renderer/postit.html')
   postitWin.webContents.on('did-finish-load', () => pushTodos())
+  // 드래그로 옮긴 위치 기억
+  let moveTimer = null
+  postitWin.on('move', () => {
+    clearTimeout(moveTimer)
+    moveTimer = setTimeout(() => {
+      if (!postitWin || postitWin.isDestroyed()) return
+      const [x, y] = postitWin.getPosition()
+      store.data.settings.postitPos = { x, y }
+      store.save()
+    }, 500)
+  })
   postitWin.on('closed', () => { postitWin = null })
 }
 
@@ -645,6 +657,8 @@ function registerIpc() {
   ipcMain.handle('notion:sync', () => syncNotion())
 
   ipcMain.handle('dashboard:open', () => { showDashboard(); return true })
+
+  ipcMain.handle('app:quit', () => { app.quit(); return true })
 
   ipcMain.handle('reward:close', () => {
     if (rewardWin && !rewardWin.isDestroyed()) rewardWin.destroy()

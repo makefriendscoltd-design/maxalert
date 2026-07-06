@@ -29,6 +29,12 @@
   .pill.pts { color: #fbbf24; }
   button.pill { cursor: pointer; }
   button.pill:hover { border-color: rgba(255,255,255,0.35); }
+  .grip {
+    -webkit-app-region: drag; /* 이 영역을 잡고 위젯 전체를 드래그 이동 */
+    cursor: move;
+    letter-spacing: 1px;
+  }
+  button.quit:hover { border-color: rgba(255,80,80,0.8); color: #ff7b7b; }
 
   #stack {
     display: flex; flex-direction: column; gap: 13px;
@@ -205,8 +211,10 @@
 </head>
 <body>
   <div class="topbar interactive">
+    <div class="pill grip" title="잡고 드래그하면 위젯을 옮길 수 있어요">⠿</div>
     <div class="pill pts">⚡ <span id="ptLabel">0</span></div>
     <button class="pill" id="btnOpen">📝 투두리스트</button>
+    <button class="pill quit" id="btnQuit" title="MaxAlert 강제종료">✕</button>
   </div>
   <div id="stack"></div>
   <div class="empty-hint" id="emptyHint">오늘의 할 일이 없어요.<br>📝 버튼으로 추가하세요!</div>
@@ -219,6 +227,7 @@
   setInterval(render, 1000)
 
   document.getElementById('btnOpen').addEventListener('click', () => window.api.openDashboard())
+  document.getElementById('btnQuit').addEventListener('click', () => window.api.quitApp())
 
   function stageOf(t, now) {
     if (t.done || !t.dueAt) return ''

@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('api', {
   syncNotion: () => ipcRenderer.invoke('notion:sync'),
   buyTheme: (id) => ipcRenderer.invoke('shop:buyTheme', id),
   openDashboard: () => ipcRenderer.invoke('dashboard:open'),
+  quitApp: () => ipcRenderer.invoke('app:quit'),
   closeReward: () => ipcRenderer.invoke('reward:close'),
   setMouseThrough: (ignore) => ipcRenderer.send('postit:mouse', ignore),
   onTodos: (cb) => ipcRenderer.on('todos', (_e, data) => cb(data)),
