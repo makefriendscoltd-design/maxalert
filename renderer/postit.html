@@ -30,10 +30,11 @@
   button.pill { cursor: pointer; }
   button.pill:hover { border-color: rgba(255,255,255,0.35); }
   .grip {
-    -webkit-app-region: drag; /* 이 영역을 잡고 위젯 전체를 드래그 이동 */
     cursor: move;
     letter-spacing: 1px;
+    user-select: none;
   }
+  .grip:active { border-color: rgba(255,255,255,0.5); }
   button.quit:hover { border-color: rgba(255,80,80,0.8); color: #ff7b7b; }
 
   #stack {
@@ -211,7 +212,7 @@
 </head>
 <body>
   <div class="topbar interactive">
-    <div class="pill grip" title="잡고 드래그하면 위젯을 옮길 수 있어요">⠿</div>
+    <div class="pill grip" id="grip" title="잡고 드래그하면 위젯을 옮길 수 있어요">⠿</div>
     <div class="pill pts">⚡ <span id="ptLabel">0</span></div>
     <button class="pill" id="btnOpen">📝 투두리스트</button>
     <button class="pill quit" id="btnQuit" title="MaxAlert 강제종료">✕</button>
@@ -228,6 +229,20 @@
 
   document.getElementById('btnOpen').addEventListener('click', () => window.api.openDashboard())
   document.getElementById('btnQuit').addEventListener('click', () => window.api.quitApp())
+
+  // ---- 그립 드래그로 위젯 이동 (메인 프로세스가 커서 추적) ----
+  let dragging = false
+  document.getElementById('grip').addEventListener('mousedown', e => {
+    e.preventDefault()
+    dragging = true
+    window.api.dragStart()
+  })
+  window.addEventListener('mouseup', () => {
+    if (dragging) { dragging = false; window.api.dragEnd() }
+  })
+  document.addEventListener('mouseleave', () => {
+    if (dragging) { dragging = false; window.api.dragEnd() }
+  })
 
   function stageOf(t, now) {
     if (t.done || !t.dueAt) return ''
@@ -334,6 +349,7 @@
   // 마우스 통과 제어: 포스트잇/버튼 위에서만 클릭 활성화
   let through = true
   document.addEventListener('mousemove', e => {
+    if (dragging) return // 드래그 중에는 클릭 통과 전환 금지
     const onInteractive = !!e.target.closest('.interactive')
     if (onInteractive && through) { through = false; window.api.setMouseThrough(false) }
     else if (!onInteractive && !through) { through = true; window.api.setMouseThrough(true) }

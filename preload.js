@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('api', {
   quitApp: () => ipcRenderer.invoke('app:quit'),
   closeReward: () => ipcRenderer.invoke('reward:close'),
   setMouseThrough: (ignore) => ipcRenderer.send('postit:mouse', ignore),
+  dragStart: () => ipcRenderer.send('postit:dragStart'),
+  dragEnd: () => ipcRenderer.send('postit:dragEnd'),
   onTodos: (cb) => ipcRenderer.on('todos', (_e, data) => cb(data)),
   onSirenTodo: (cb) => ipcRenderer.on('siren:todo', (_e, data) => cb(data))
 })

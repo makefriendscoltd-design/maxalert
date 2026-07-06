@@ -670,4 +670,23 @@ function registerIpc() {
       postitWin.setIgnoreMouseEvents(!!ignore, { forward: true })
     }
   })
+
+  // 위젯 드래그: 렌더러의 app-region은 이 창 구성(투명+비포커스)에서 동작하지 않으므로
+  // 메인에서 커서를 추적하며 창을 직접 이동
+  let dragTimer = null
+  ipcMain.on('postit:dragStart', () => {
+    if (!postitWin || postitWin.isDestroyed()) return
+    const startCursor = screen.getCursorScreenPoint()
+    const [wx, wy] = postitWin.getPosition()
+    clearInterval(dragTimer)
+    dragTimer = setInterval(() => {
+      if (!postitWin || postitWin.isDestroyed()) { clearInterval(dragTimer); return }
+      const c = screen.getCursorScreenPoint()
+      postitWin.setPosition(wx + c.x - startCursor.x, wy + c.y - startCursor.y)
+    }, 16)
+  })
+  ipcMain.on('postit:dragEnd', () => {
+    clearInterval(dragTimer)
+    dragTimer = null
+  })
 }
