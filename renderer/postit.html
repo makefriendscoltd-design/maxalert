@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+  html, body { background: transparent; overflow: hidden; height: 100%; }
+  body {
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif;
+    padding: 10px 12px;
+    display: flex; flex-direction: column; gap: 12px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== 상단 바 ===== */
+  .topbar {
+    display: flex; justify-content: flex-end; align-items: center; gap: 8px;
+    opacity: 0.4; transition: opacity 0.2s;
+  }
+  .topbar:hover { opacity: 1; }
+  .pill {
+    display: flex; align-items: center; gap: 5px;
+    background: rgba(13, 15, 20, 0.88);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px; padding: 5px 12px;
+    font-size: 12px; font-weight: 700; color: #e9ecf4;
+  }
+  .pill.pts { color: #fbbf24; }
+  button.pill { cursor: pointer; }
+  button.pill:hover { border-color: rgba(255,255,255,0.35); }
+
+  #stack {
+    display: flex; flex-direction: column; gap: 13px;
+    overflow-y: auto; flex: 1; padding: 6px 2px 24px;
+  }
+  #stack::-webkit-scrollbar { width: 0; }
+
+  /* ===== 포스트잇 ===== */
+  .postit {
+    position: relative;
+    border-radius: 2px;
+    padding: 16px 14px 10px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.2);
+    --peek: 0%;
+    transform: translateX(var(--peek)) rotate(-1.2deg);
+    transition: transform 0.45s cubic-bezier(0.25, 0.9, 0.3, 1), box-shadow 0.16s;
+    min-height: 82px;
+    color: #2b2417;
+  }
+  .postit:nth-child(even) { transform: translateX(var(--peek)) rotate(1.1deg); }
+  .postit:hover {
+    --peek: 0%;
+    transform: translateX(0) rotate(0) translateY(-3px) scale(1.02);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.45);
+    z-index: 2;
+  }
+  /* 마감까지 남은 시간에 따라 서랍처럼 밀려 나옴 */
+  .peek-far  { --peek: 82%; }  /* 3시간 이상: 끄트머리만 */
+  .peek-mid  { --peek: 55%; }  /* 3시간 이내 */
+  .peek-near { --peek: 26%; }  /* 1시간 이내 */
+  /* 30분 이내부터는 --peek: 0 (완전히 나옴) + 폭탄 점화 */
+  /* 테이프 */
+  .postit::before {
+    content: '';
+    position: absolute; top: -7px; left: 50%;
+    transform: translateX(-50%) rotate(-2deg);
+    width: 74px; height: 16px;
+    background: rgba(255,255,255,0.45);
+    border-left: 1px dashed rgba(255,255,255,0.6);
+    border-right: 1px dashed rgba(255,255,255,0.6);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+  }
+  .c-yellow { background: linear-gradient(178deg, #ffef9e 0%, #f7dd6b 100%); }
+  .c-pink   { background: linear-gradient(178deg, #ffd3e4 0%, #f7a8c8 100%); }
+  .c-blue   { background: linear-gradient(178deg, #cde9ff 0%, #9fcef5 100%); }
+  .c-green  { background: linear-gradient(178deg, #d5f5cd 0%, #a8e39a 100%); }
+  .c-purple { background: linear-gradient(178deg, #e9dcff 0%, #ccb2f5 100%); }
+  .c-orange { background: linear-gradient(178deg, #ffe3bd 0%, #f7c078 100%); }
+
+  .p-time {
+    font-size: 11.5px; font-weight: 800; letter-spacing: 0.2px;
+    display: flex; gap: 7px; align-items: baseline; opacity: 0.75;
+  }
+  .p-remain { font-size: 11px; font-weight: 700; }
+  .p-title { font-size: 15.5px; font-weight: 700; margin-top: 4px; word-break: break-all; line-height: 1.35; }
+
+  .p-actions { display: none; gap: 6px; margin-top: 9px; }
+  .postit:hover .p-actions { display: flex; }
+  .p-actions button {
+    border: none; border-radius: 7px; padding: 5px 11px;
+    font-size: 12px; cursor: pointer; font-weight: 700; font-family: inherit;
+    background: rgba(20, 18, 10, 0.82); color: #fff;
+    transition: background 0.1s;
+  }
+  .p-actions button:hover { background: #000; }
+  .p-actions .b-done { background: #15803d; }
+  .p-actions .b-done:hover { background: #166534; }
+
+  /* ===== 도화선 ===== */
+  .fuse-bar {
+    display: none; position: relative;
+    height: 4px; border-radius: 2px;
+    background: rgba(0,0,0,0.14); margin-top: 9px;
+  }
+  .fuse-fill {
+    height: 100%; border-radius: 2px;
+    background: linear-gradient(90deg, #f59e0b, #ef4444);
+  }
+  .fuse-spark {
+    position: absolute; top: -7px; margin-left: -8px;
+    font-size: 11px; animation: sparkle 0.3s infinite alternate;
+  }
+  @keyframes sparkle {
+    from { transform: scale(0.7) rotate(-20deg); opacity: 0.65; }
+    to { transform: scale(1.35) rotate(20deg); opacity: 1; }
+  }
+
+  /* ===== 폭탄 ===== */
+  .bomb {
+    position: absolute; top: -10px; right: -5px;
+    font-size: 21px; display: none;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,0.4));
+  }
+  .boom-icon {
+    display: none; position: absolute; top: -20px; right: -9px;
+    font-size: 38px; animation: boom 0.55s infinite alternate;
+    filter: drop-shadow(0 0 10px rgba(255,120,0,0.8));
+  }
+  @keyframes boom { from { transform: scale(0.88); } to { transform: scale(1.28); } }
+
+  .stage-burning .bomb { display: block; font-size: 25px; }
+  .stage-burning .fuse-bar { display: block; }
+  .stage-burning .fuse-spark { display: block; }
+
+  .stage-critical .bomb { display: block; font-size: 29px; }
+  .stage-critical .fuse-bar { display: block; }
+  .stage-critical .fuse-spark { display: block; }
+  .stage-critical { animation: wobble 1.1s infinite; }
+  @keyframes wobble { 0%,100% { transform: rotate(-1.6deg); } 50% { transform: rotate(1.6deg); } }
+
+  .stage-panic .bomb { display: block; font-size: 33px; }
+  .stage-panic .fuse-bar { display: block; }
+  .stage-panic .fuse-spark { display: block; animation-duration: 0.13s; }
+  .stage-panic {
+    animation: shake 0.22s infinite;
+    outline: 2px solid #ef4444;
+    box-shadow: 0 0 22px rgba(239,68,68,0.55);
+  }
+  @keyframes shake {
+    0%,100% { transform: translate(0,0) rotate(-1deg); }
+    25% { transform: translate(-3px,1px) rotate(1.2deg); }
+    50% { transform: translate(3px,-1px) rotate(-1.6deg); }
+    75% { transform: translate(-2px,-2px) rotate(1.6deg); }
+  }
+
+  .stage-boom {
+    background: linear-gradient(178deg, #3d342c, #2b241e) !important;
+    outline: 2px solid #f97316;
+    color: #ffd9c4;
+  }
+  .stage-boom::before { background: rgba(255,255,255,0.12); }
+  .stage-boom .boom-icon { display: block; }
+  .stage-boom .p-time { opacity: 0.95; }
+
+  /* ===== 상점 테마 ===== */
+  /* 네온 */
+  body.theme-neon .c-yellow { background: linear-gradient(178deg, #fffb6b, #ffe600); }
+  body.theme-neon .c-pink   { background: linear-gradient(178deg, #ff8fc8, #ff4da6); }
+  body.theme-neon .c-blue   { background: linear-gradient(178deg, #7fd4ff, #2eb0ff); }
+  body.theme-neon .c-green  { background: linear-gradient(178deg, #8dff9e, #3bf05e); }
+  body.theme-neon .c-purple { background: linear-gradient(178deg, #d3a6ff, #a95dff); }
+  body.theme-neon .c-orange { background: linear-gradient(178deg, #ffc271, #ff9124); }
+  body.theme-neon .postit { box-shadow: 0 4px 14px rgba(0,0,0,0.4), 0 0 18px rgba(255,255,255,0.22); }
+
+  /* 크라프트 (종이 질감 톤) */
+  body.theme-kraft .postit { color: #3d2f1e; }
+  body.theme-kraft .c-yellow { background: linear-gradient(178deg, #e8d5a8, #d9bf85); }
+  body.theme-kraft .c-pink   { background: linear-gradient(178deg, #e3c3b4, #d4a48f); }
+  body.theme-kraft .c-blue   { background: linear-gradient(178deg, #c9d3cf, #aec0ba); }
+  body.theme-kraft .c-green  { background: linear-gradient(178deg, #d3d8ae, #bcc488); }
+  body.theme-kraft .c-purple { background: linear-gradient(178deg, #d8c8c2, #c0a9a4); }
+  body.theme-kraft .c-orange { background: linear-gradient(178deg, #e5c9a0, #d3ad72); }
+
+  /* 미드나잇 (다크 + 색상 스트라이프) */
+  body.theme-midnight .postit { color: #e6e9f2; }
+  body.theme-midnight .postit::before { background: rgba(255,255,255,0.14); }
+  body.theme-midnight .fuse-bar { background: rgba(255,255,255,0.16); }
+  body.theme-midnight .c-yellow { background: linear-gradient(178deg, #33301b, #262310); border-left: 5px solid #fbbf24; }
+  body.theme-midnight .c-pink   { background: linear-gradient(178deg, #33202b, #261620); border-left: 5px solid #f472b6; }
+  body.theme-midnight .c-blue   { background: linear-gradient(178deg, #1e2a3d, #141f2e); border-left: 5px solid #60a5fa; }
+  body.theme-midnight .c-green  { background: linear-gradient(178deg, #1e3324, #142619); border-left: 5px solid #4ade80; }
+  body.theme-midnight .c-purple { background: linear-gradient(178deg, #2a2238, #1e182a); border-left: 5px solid #a78bfa; }
+  body.theme-midnight .c-orange { background: linear-gradient(178deg, #33281b, #262010); border-left: 5px solid #fb923c; }
+
+  .empty-hint {
+    text-align: center; color: #c9cfdd;
+    background: rgba(13, 15, 20, 0.72);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 12px;
+    padding: 13px; font-size: 12px; display: none; line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+  <div class="topbar interactive">
+    <div class="pill pts">⚡ <span id="ptLabel">0</span></div>
+    <button class="pill" id="btnOpen">📝 투두리스트</button>
+  </div>
+  <div id="stack"></div>
+  <div class="empty-hint" id="emptyHint">오늘의 할 일이 없어요.<br>📝 버튼으로 추가하세요!</div>
+
+<script>
+  let state = { todos: [], profile: null }
+
+  window.api.onTodos(data => { state = data; render() })
+  window.api.listTodos().then(data => { state = data; render() })
+  setInterval(render, 1000)
+
+  document.getElementById('btnOpen').addEventListener('click', () => window.api.openDashboard())
+
+  function stageOf(t, now) {
+    if (t.done || !t.dueAt) return ''
+    const r = t.dueAt - now
+    if (r <= 0) return 'stage-boom'
+    if (r <= 3 * 60000) return 'stage-panic'
+    if (r <= 10 * 60000) return 'stage-critical'
+    if (r <= 30 * 60000) return 'stage-burning'
+    return ''
+  }
+
+  // 남은 시간에 따른 서랍식 노출 단계
+  function peekOf(t, now) {
+    if (t.done) return ''
+    if (!t.dueAt) return 'peek-far' // 종일 일정은 끄트머리만
+    const r = t.dueAt - now
+    if (r <= 30 * 60000) return ''            // 30분 이내: 완전히 나옴
+    if (r <= 60 * 60000) return 'peek-near'   // 1시간 이내
+    if (r <= 180 * 60000) return 'peek-mid'   // 3시간 이내
+    return 'peek-far'                          // 그 이상: 끄트머리만
+  }
+
+  function fmtTime(ms) {
+    const d = new Date(ms)
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0')
+  }
+
+  function fmtRemain(t, now) {
+    if (!t.dueAt) return ''
+    const r = t.dueAt - now
+    if (r <= 0) {
+      const over = Math.floor(-r / 60000)
+      return over < 1 ? '💥 지금!' : `💥 ${over}분 지남`
+    }
+    const min = Math.floor(r / 60000)
+    if (min >= 60) return `${Math.floor(min/60)}시간 ${min%60}분 남음`
+    if (min >= 1) return `${min}분 남음`
+    return `${Math.floor(r/1000)}초!`
+  }
+
+  // 매초 DOM을 갈아엎으면 호버/슬라이드 전환이 끊기므로, 요소는 유지하고 상태만 갱신
+  let lastOrder = ''
+
+  function makePostit(t) {
+    const div = document.createElement('div')
+    div.dataset.id = t.id
+    div.innerHTML = `
+      <div class="bomb">💣</div>
+      <div class="boom-icon">💥</div>
+      <div class="p-time">
+        <span class="p-clock"></span>
+        <span class="p-remain"></span>
+      </div>
+      <div class="p-title"></div>
+      <div class="fuse-bar">
+        <div class="fuse-fill"></div>
+        <span class="fuse-spark">✨</span>
+      </div>
+      <div class="p-actions">
+        <button class="b-done" data-act="done">✔ 완료 +10⚡</button>
+        <button data-act="postpone">⏳ +10분</button>
+      </div>`
+    div.querySelector('[data-act=done]').addEventListener('click', () => window.api.toggleTodo(t.id))
+    div.querySelector('[data-act=postpone]').addEventListener('click', () => window.api.postponeTodo(t.id, 10))
+    return div
+  }
+
+  function updatePostit(el, t, now) {
+    const cls = `postit interactive c-${t.color} ${stageOf(t, now)} ${peekOf(t, now)}`
+    if (el.className !== cls) el.className = cls
+    el.querySelector('.p-clock').textContent = t.dueAt ? '⏰ ' + fmtTime(t.dueAt) : '📌 종일'
+    el.querySelector('.p-remain').textContent = fmtRemain(t, now)
+    el.querySelector('.p-title').textContent = t.title
+    // 도화선: 폭탄이 달리는 마지막 30분을 잔여 비율로 표시
+    const fusePct = t.dueAt ? Math.max(0, Math.min(100, (t.dueAt - now) / (30 * 60000) * 100)) : 0
+    el.querySelector('.fuse-fill').style.width = fusePct + '%'
+    el.querySelector('.fuse-spark').style.left = fusePct + '%'
+  }
+
+  function render() {
+    const now = Date.now()
+    if (state.profile) document.getElementById('ptLabel').textContent = state.profile.total.toLocaleString()
+    const themeCls = 'theme-' + (state.theme || 'classic')
+    if (document.body.className !== themeCls) document.body.className = themeCls
+    const stack = document.getElementById('stack')
+    const visible = state.todos.filter(t => !t.done)
+    document.getElementById('emptyHint').style.display = visible.length ? 'none' : 'block'
+
+    const order = visible.map(t => t.id).join(',')
+    if (order !== lastOrder) {
+      // 목록 구성이 바뀐 경우에만 재배치 (기존 요소는 재사용)
+      const byId = {}
+      for (const el of stack.children) byId[el.dataset.id] = el
+      stack.textContent = ''
+      for (const t of visible) stack.appendChild(byId[t.id] || makePostit(t))
+      lastOrder = order
+    }
+    for (const el of stack.children) {
+      const t = visible.find(x => x.id === el.dataset.id)
+      if (t) updatePostit(el, t, now)
+    }
+  }
+
+  // 마우스 통과 제어: 포스트잇/버튼 위에서만 클릭 활성화
+  let through = true
+  document.addEventListener('mousemove', e => {
+    const onInteractive = !!e.target.closest('.interactive')
+    if (onInteractive && through) { through = false; window.api.setMouseThrough(false) }
+    else if (!onInteractive && !through) { through = true; window.api.setMouseThrough(true) }
+  })
+  document.addEventListener('mouseleave', () => {
+    if (!through) { through = true; window.api.setMouseThrough(true) }
+  })
+</script>
+</body>
+</html>

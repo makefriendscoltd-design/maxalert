@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+  html, body { height: 100%; overflow: hidden; background: transparent; }
+  body {
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    -webkit-font-smoothing: antialiased;
+  }
+  canvas { position: fixed; inset: 0; pointer-events: none; }
+  .card {
+    background: rgba(13, 16, 25, 0.93);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 26px;
+    padding: 44px 60px;
+    text-align: center;
+    color: #e9ecf4;
+    box-shadow: 0 20px 80px rgba(0,0,0,0.6);
+    animation: pop 0.5s cubic-bezier(0.2, 1.6, 0.4, 1);
+    position: relative; z-index: 2;
+    min-width: 420px;
+  }
+  @keyframes pop { from { transform: scale(0.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .trophy { font-size: 72px; animation: bounce 1s infinite alternate; }
+  @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-12px); } }
+  h1 {
+    font-size: 30px; margin: 14px 0 6px; letter-spacing: -0.5px;
+    background: linear-gradient(90deg, #fbbf24, #f97316);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .praise { font-size: 16px; color: #aab2c5; margin-bottom: 24px; }
+
+  .rows { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+  .row {
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px; padding: 11px 16px;
+    font-size: 14px; font-weight: 600;
+  }
+  .row .val { font-weight: 800; }
+  .val.pts { color: #fbbf24; }
+  .val.fire { color: #fb923c; }
+  .level-line {
+    margin-top: 18px; display: flex; align-items: center; gap: 10px;
+    justify-content: center; font-size: 15px; font-weight: 800;
+  }
+  .hint { margin-top: 22px; font-size: 12px; color: #5b6274; }
+</style>
+</head>
+<body>
+  <canvas id="confetti"></canvas>
+  <div class="card">
+    <div class="trophy">🏆</div>
+    <h1>PERFECT DAY</h1>
+    <div class="praise" id="praise"></div>
+    <div class="rows">
+      <div class="row"><span>🎉 전체 완료 보너스</span><span class="val pts">+50 ⚡</span></div>
+      <div class="row"><span>오늘 획득 포인트</span><span class="val pts" id="todayPt">+0 ⚡</span></div>
+      <div class="row"><span>연속 달성</span><span class="val fire" id="streakVal">🔥 1일</span></div>
+      <div class="row"><span>누적 포인트</span><span class="val" id="totalPt">0 ⚡</span></div>
+    </div>
+    <div class="level-line"><span id="lvIcon">🐠</span><span id="lvTitle"></span></div>
+    <div class="hint">아무 곳이나 클릭하면 닫힙니다</div>
+  </div>
+
+<script>
+  const PRAISES = [
+    '완벽한 하루였어요. 정말 대단해요! 👏',
+    '오늘의 나, 미래의 나에게 최고의 선물을 줬어요 🎁',
+    '미루지 않는 사람, 그게 바로 당신입니다 ✨',
+    '폭탄은 모두 해제됐습니다. 요원님, 수고하셨습니다 🕶️',
+    '오늘도 ADHD에게 완승! 🥊',
+    '계획한 것을 전부 해내는 사람은 생각보다 드뭅니다 🌟'
+  ]
+  const q = new URLSearchParams(location.search)
+  const streak = parseInt(q.get('streak') || '1', 10)
+  const today = parseInt(q.get('today') || '0', 10)
+  const total = parseInt(q.get('total') || '0', 10)
+
+  document.getElementById('praise').textContent = PRAISES[Math.floor(Math.random() * PRAISES.length)]
+  document.getElementById('streakVal').textContent = `🔥 ${streak}일`
+  document.getElementById('todayPt').textContent = `+${today} ⚡`
+  document.getElementById('totalPt').textContent = `${total.toLocaleString()} ⚡`
+  document.getElementById('lvIcon').textContent = q.get('icon') || '🐠'
+  document.getElementById('lvTitle').textContent = q.get('title') || ''
+
+  document.body.addEventListener('click', () => window.api.closeReward())
+
+  // ---- 폭죽 ----
+  const canvas = document.getElementById('confetti')
+  const cx = canvas.getContext('2d')
+  canvas.width = innerWidth; canvas.height = innerHeight
+  const COLORS = ['#ff5252','#ffd740','#69f0ae','#40c4ff','#e040fb','#ff9e40','#ffffff']
+  let particles = []
+
+  function burst(x, y) {
+    for (let i = 0; i < 60; i++) {
+      const a = Math.random() * Math.PI * 2
+      const v = 2 + Math.random() * 7
+      particles.push({
+        x, y,
+        vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2,
+        size: 3 + Math.random() * 5,
+        color: COLORS[Math.floor(Math.random() * COLORS.length)],
+        life: 90 + Math.random() * 60,
+        rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.3
+      })
+    }
+  }
+
+  function loop() {
+    cx.clearRect(0, 0, canvas.width, canvas.height)
+    particles = particles.filter(p => p.life > 0)
+    for (const p of particles) {
+      p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.rot += p.vr; p.life--
+      cx.save()
+      cx.translate(p.x, p.y); cx.rotate(p.rot)
+      cx.globalAlpha = Math.min(1, p.life / 40)
+      cx.fillStyle = p.color
+      cx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6)
+      cx.restore()
+    }
+    requestAnimationFrame(loop)
+  }
+  loop()
+
+  burst(canvas.width / 2, canvas.height / 3)
+  let bursts = 0
+  const bi = setInterval(() => {
+    burst(Math.random() * canvas.width, Math.random() * canvas.height * 0.6)
+    if (++bursts > 12) clearInterval(bi)
+  }, 700)
+</script>
+</body>
+</html>

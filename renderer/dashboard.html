@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>MaxAlert</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0d0f14;
+    --surface: #14171f;
+    --card: #1a1e29;
+    --card-hover: #1f2431;
+    --border: rgba(255,255,255,0.07);
+    --text: #e9ecf4;
+    --muted: #8a93a8;
+    --faint: #5b6274;
+    --accent: #6366f1;
+    --accent2: #a855f7;
+    --amber: #fbbf24;
+    --green: #34d399;
+    --red: #f87171;
+    --radius: 14px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px 22px 40px;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: #2a3040; border-radius: 4px; }
+
+  /* ===== 헤더 ===== */
+  .top {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 14px;
+  }
+  .brand { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; }
+  .brand em { font-style: normal; background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .date { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  .chips { display: flex; gap: 8px; }
+  .chip {
+    display: flex; align-items: center; gap: 5px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 999px; padding: 6px 13px;
+    font-size: 12.5px; font-weight: 700;
+  }
+  .chip .pt { color: var(--amber); }
+  .chip .fire { color: #fb923c; }
+
+  /* ===== 레벨 카드 ===== */
+  .level-card {
+    background: linear-gradient(135deg, rgba(99,102,241,0.16), rgba(168,85,247,0.10));
+    border: 1px solid rgba(120,110,255,0.25);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-bottom: 14px;
+  }
+  .level-row { display: flex; align-items: center; gap: 12px; }
+  .level-icon {
+    width: 46px; height: 46px; border-radius: 12px;
+    background: rgba(255,255,255,0.08);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; flex-shrink: 0;
+  }
+  .level-name { font-size: 16px; font-weight: 800; }
+  .level-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .level-bar {
+    height: 7px; border-radius: 4px; background: rgba(255,255,255,0.08);
+    margin-top: 12px; overflow: hidden;
+  }
+  .level-fill {
+    height: 100%; border-radius: 4px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  /* ===== 통계 ===== */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+  .stat {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 12px 14px;
+  }
+  .stat b { font-size: 20px; font-weight: 800; display: block; }
+  .stat span { font-size: 11.5px; color: var(--muted); }
+  .stat .plus { color: var(--green); }
+
+  /* ===== 섹션 ===== */
+  .section-label {
+    font-size: 11px; font-weight: 800; letter-spacing: 1.2px;
+    color: var(--faint); text-transform: uppercase;
+    margin: 22px 2px 10px;
+  }
+
+  /* ===== 추가 폼 ===== */
+  .add-form {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px;
+    display: flex; flex-direction: column; gap: 11px;
+  }
+  .add-row { display: flex; gap: 8px; }
+  input[type=time], input[type=text], input[type=password] {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 9px; padding: 9px 12px; font-size: 14px;
+    color: var(--text); font-family: inherit;
+  }
+  input[type=time] { width: 112px; }
+  input[type=text] { flex: 1; }
+  input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99,102,241,0.18); }
+  input::placeholder { color: var(--faint); }
+  .colors { display: flex; gap: 9px; align-items: center; }
+  .color-dot {
+    width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+    border: 2px solid transparent; transition: transform 0.12s, border-color 0.12s;
+  }
+  .color-dot:hover { transform: scale(1.18); }
+  .color-dot.sel { border-color: #fff; transform: scale(1.1); }
+  .d-yellow { background: #fbbf24; } .d-pink { background: #f472b6; }
+  .d-blue { background: #60a5fa; } .d-green { background: #4ade80; }
+  .d-purple { background: #a78bfa; } .d-orange { background: #fb923c; }
+  .btn-add {
+    border: none; border-radius: 9px; min-width: 104px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    color: #fff; font-size: 14px; font-weight: 800; padding: 10px;
+    cursor: pointer; font-family: inherit;
+    transition: filter 0.12s, transform 0.1s;
+  }
+  .btn-add:hover { filter: brightness(1.15); }
+  .btn-add:active { transform: scale(0.97); }
+
+  /* ===== 리스트 ===== */
+  #list { display: flex; flex-direction: column; gap: 8px; }
+  .item {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 11px 13px;
+    display: flex; align-items: center; gap: 11px;
+    position: relative; overflow: hidden;
+    transition: background 0.12s;
+  }
+  .item:hover { background: var(--card-hover); }
+  .item::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  }
+  .item.b-yellow::before { background: #fbbf24; } .item.b-pink::before { background: #f472b6; }
+  .item.b-blue::before { background: #60a5fa; } .item.b-green::before { background: #4ade80; }
+  .item.b-purple::before { background: #a78bfa; } .item.b-orange::before { background: #fb923c; }
+  .item.done-item { opacity: 0.45; }
+  .item.done-item .i-title { text-decoration: line-through; }
+  .chk {
+    width: 22px; height: 22px; border-radius: 7px;
+    border: 2px solid #3a4157;
+    cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; transition: all 0.15s;
+  }
+  .chk:hover { border-color: var(--green); }
+  .chk.on { background: var(--green); border-color: var(--green); color: #0d0f14; font-weight: 900; }
+  .i-body { flex: 1; min-width: 0; }
+  .i-title { font-size: 14.5px; font-weight: 600; word-break: break-all; }
+  .i-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .i-meta .urgent { color: var(--red); font-weight: 700; }
+  .i-meta .notion-tag {
+    color: var(--muted); border: 1px solid var(--border); border-radius: 4px;
+    padding: 0 5px; margin-left: 5px; font-size: 10.5px;
+  }
+  .i-actions { display: flex; gap: 5px; flex-shrink: 0; opacity: 0; transition: opacity 0.12s; }
+  .item:hover .i-actions { opacity: 1; }
+  .i-actions button {
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--muted); border-radius: 7px; cursor: pointer;
+    font-size: 11.5px; padding: 5px 9px; font-family: inherit;
+  }
+  .i-actions button:hover { color: var(--text); border-color: #3a4157; }
+  .empty { text-align: center; color: var(--faint); padding: 34px 0; font-size: 13.5px; line-height: 1.7; }
+
+  .edit-form { display: flex; gap: 6px; flex: 1; align-items: center; }
+  .edit-form input[type=text] { padding: 6px 9px; font-size: 13.5px; }
+  .edit-form input[type=time] { padding: 6px; font-size: 12.5px; width: 96px; }
+  .edit-form button {
+    border: none; border-radius: 7px; padding: 7px 12px; cursor: pointer;
+    font-size: 12.5px; font-weight: 700; font-family: inherit;
+  }
+  .btn-save { background: var(--green); color: #0d0f14; }
+  .btn-cancel { background: var(--surface); color: var(--muted); border: 1px solid var(--border) !important; }
+
+  /* ===== 뱃지 ===== */
+  .badges { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .badge {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 6px 10px; text-align: center;
+    transition: transform 0.12s;
+  }
+  .badge:hover { transform: translateY(-2px); }
+  .badge .b-icon { font-size: 24px; }
+  .badge .b-name { font-size: 11px; font-weight: 700; margin-top: 5px; }
+  .badge.locked { opacity: 0.35; }
+  .badge.locked .b-icon { filter: grayscale(1); }
+  .badge.owned { border-color: rgba(251,191,36,0.4); background: linear-gradient(180deg, rgba(251,191,36,0.08), var(--card)); }
+
+  /* ===== 포인트 내역 ===== */
+  .ledger { display: flex; flex-direction: column; gap: 2px; }
+  .ledger-row {
+    display: flex; justify-content: space-between; gap: 10px;
+    padding: 7px 4px; font-size: 12.5px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .ledger-row .l-reason { color: var(--muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ledger-row .l-delta { font-weight: 800; flex-shrink: 0; }
+  .l-delta.pos { color: var(--green); }
+  .l-delta.neg { color: var(--red); }
+
+  /* ===== 포인트 상점 ===== */
+  .shop { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .shop-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 13px 14px;
+  }
+  .shop-card.active { border-color: rgba(99,102,241,0.6); }
+  .shop-name { font-weight: 800; font-size: 13.5px; display: flex; justify-content: space-between; align-items: center; }
+  .shop-dots { display: flex; gap: 5px; margin: 9px 0 11px; }
+  .shop-dots span { width: 18px; height: 18px; border-radius: 5px; }
+  .shop-btn {
+    width: 100%; border: none; border-radius: 8px; padding: 7px;
+    font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit;
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
+  }
+  .shop-btn:hover { border-color: var(--accent); }
+  .shop-btn.buy { color: var(--amber); }
+  .shop-btn.on { background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #fff; border: none; cursor: default; }
+  .shop-msg { font-size: 12px; color: var(--red); min-height: 16px; margin-top: 8px; }
+
+  /* ===== 라운지 ===== */
+  .lounge {
+    background: var(--card); border: 1px dashed rgba(255,255,255,0.15);
+    border-radius: var(--radius); padding: 16px;
+  }
+  .lounge-head { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; }
+  .soon { font-size: 10px; font-weight: 800; color: var(--accent2); border: 1px solid rgba(168,85,247,0.4); border-radius: 999px; padding: 2px 8px; }
+  .profile-card {
+    margin-top: 12px;
+    background: linear-gradient(135deg, #1c2130, #171b26);
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px; display: flex; align-items: center; gap: 12px;
+  }
+  .pc-avatar {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center; font-size: 24px;
+  }
+  .pc-name { font-weight: 800; font-size: 14px; }
+  .pc-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .lounge-note { font-size: 12px; color: var(--faint); margin-top: 11px; line-height: 1.65; }
+
+  /* ===== 설정 ===== */
+  details {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px;
+  }
+  summary { cursor: pointer; font-weight: 700; font-size: 13.5px; color: var(--text); }
+  summary::marker { color: var(--faint); }
+  .set-body { margin-top: 13px; display: flex; flex-direction: column; gap: 10px; }
+  .set-row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .set-row label { min-width: 116px; color: var(--muted); }
+  .set-row input[type=text], .set-row input[type=password] { flex: 1; font-size: 13px; padding: 8px 10px; }
+  .btn-sync {
+    border: none; border-radius: 9px; background: var(--surface);
+    border: 1px solid var(--border); color: var(--text);
+    font-size: 13px; font-weight: 700; padding: 9px; cursor: pointer; font-family: inherit;
+  }
+  .btn-sync:hover { border-color: var(--accent); }
+  .sync-status { font-size: 12px; color: var(--muted); min-height: 16px; }
+  .sync-status.err { color: var(--red); }
+  .sync-status.ok { color: var(--green); }
+  .note { font-size: 11.5px; color: var(--faint); line-height: 1.65; }
+  input[type=range] { flex: 1; accent-color: var(--accent); }
+  input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+</style>
+</head>
+<body>
+  <div class="top">
+    <div>
+      <div class="brand">Max<em>Alert</em> <span style="font-size:12px">🐥</span></div>
+      <div class="date" id="dateLabel"></div>
+    </div>
+    <div class="chips">
+      <div class="chip"><span class="pt">⚡</span><span id="ptLabel">0</span></div>
+      <div class="chip" id="streakChip" style="display:none"><span class="fire">🔥</span><span id="streakLabel"></span></div>
+    </div>
+  </div>
+
+  <div class="level-card">
+    <div class="level-row">
+      <div class="level-icon" id="lvIcon">🐠</div>
+      <div style="flex:1">
+        <div class="level-name" id="lvName">Lv.1 산만한 금붕어</div>
+        <div class="level-sub" id="lvSub"></div>
+      </div>
+    </div>
+    <div class="level-bar"><div class="level-fill" id="lvFill" style="width:0%"></div></div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b id="stToday">0/0</b><span>오늘 완료</span></div>
+    <div class="stat"><b class="plus" id="stTodayPt">+0</b><span>오늘 획득 ⚡</span></div>
+    <div class="stat"><b id="stTotal">0</b><span>누적 완료</span></div>
+  </div>
+
+  <div class="section-label">새 할 일</div>
+  <div class="add-form">
+    <div class="add-row">
+      <input type="time" id="inTime" title="시간 (비우면 종일 일정)">
+      <input type="text" id="inTitle" placeholder="할 일을 입력하세요 (Enter로 추가)" maxlength="80">
+    </div>
+    <div class="add-row" style="justify-content: space-between; align-items: center;">
+      <div class="colors" id="colorPick">
+        <div class="color-dot d-yellow sel" data-c="yellow"></div>
+        <div class="color-dot d-pink" data-c="pink"></div>
+        <div class="color-dot d-blue" data-c="blue"></div>
+        <div class="color-dot d-green" data-c="green"></div>
+        <div class="color-dot d-purple" data-c="purple"></div>
+        <div class="color-dot d-orange" data-c="orange"></div>
+      </div>
+      <button class="btn-add" id="btnAdd">+ 추가</button>
+    </div>
+  </div>
+
+  <div class="section-label">오늘의 할 일</div>
+  <div id="list"></div>
+
+  <div class="section-label">뱃지 컬렉션</div>
+  <div class="badges" id="badgeGrid"></div>
+
+  <div class="section-label">⚡ 포인트 상점 — 포스트잇 테마</div>
+  <div class="shop" id="shopGrid"></div>
+  <div class="shop-msg" id="shopMsg"></div>
+
+  <div class="section-label">포인트 내역</div>
+  <div class="ledger" id="ledger"></div>
+
+  <div class="section-label">커뮤니티</div>
+  <div class="lounge">
+    <div class="lounge-head">🌐 ADHD 라운지 <span class="soon">COMING SOON</span></div>
+    <div class="profile-card">
+      <div class="pc-avatar" id="pcAvatar">🐠</div>
+      <div>
+        <div class="pc-name" id="pcName">산만한 금붕어</div>
+        <div class="pc-sub" id="pcSub">⚡ 0 · 뱃지 0개 · 🔥 0일 연속</div>
+      </div>
+    </div>
+    <div class="lounge-note">
+      같은 앱을 쓰는 사람들과 포인트 랭킹·스트릭 대결·서로의 사이렌을 응원(?)하는 공간이 준비 중입니다.
+      지금 쌓는 포인트와 칭호는 라운지 오픈 시 그대로 연동됩니다.
+    </div>
+  </div>
+
+  <div class="section-label" style="margin-top:26px">연동 · 설정</div>
+  <details>
+    <summary>🔗 노션 연동</summary>
+    <div class="set-body">
+      <div class="set-row">
+        <label>API 토큰</label>
+        <input type="password" id="inNotionToken" placeholder="ntn_... 또는 secret_...">
+      </div>
+      <div class="set-row">
+        <label>데이터베이스 ID</label>
+        <input type="text" id="inNotionDb" placeholder="URL을 통째로 붙여넣어도 됩니다">
+      </div>
+      <button class="btn-sync" id="btnSync">저장하고 지금 동기화</button>
+      <div class="sync-status" id="syncStatus"></div>
+      <div class="note">
+        notion.so/my-integrations에서 통합(Integration)을 만들어 토큰을 발급받고,
+        일정 DB에 해당 통합을 연결(⋯ → 연결 → 통합 선택)하세요.
+        제목·날짜(시간 포함)·체크박스 속성을 자동 감지하며 1분마다 동기화됩니다.
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>⚙️ 설정</summary>
+    <div class="set-body">
+      <div class="set-row">
+        <label>부팅 시 자동 시작</label>
+        <input type="checkbox" id="inAutoStart">
+      </div>
+      <div class="set-row">
+        <label>사이렌 볼륨</label>
+        <input type="range" id="inVolume" min="0" max="1" step="0.1">
+        <span id="volLabel" style="color:var(--muted); font-size:12px; min-width:36px"></span>
+      </div>
+      <div class="note">
+        ⏰ 시간이 있는 일정은 3분 전부터 전체 화면 사이렌이 울립니다.
+        완료 체크 또는 미루기 전까지 꺼지지 않습니다. 미루기는 ⚡ -3점 😈
+      </div>
+    </div>
+  </details>
+
+<script>
+  let state = { todos: [], streak: null, profile: null }
+  let selectedColor = 'yellow'
+  let editingId = null
+
+  const now = new Date()
+  const DAYS = ['일','월','화','수','목','금','토']
+  document.getElementById('dateLabel').textContent =
+    `${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일 (${DAYS[now.getDay()]})`
+
+  window.api.onTodos(d => { state = d; render() })
+  window.api.listTodos().then(d => { state = d; render() })
+  setInterval(render, 1000)
+
+  // ---- 추가 ----
+  const inTitle = document.getElementById('inTitle')
+  const inTime = document.getElementById('inTime')
+  async function add() {
+    const title = inTitle.value.trim()
+    if (!title) { inTitle.focus(); return }
+    await window.api.addTodo({ title, time: inTime.value, color: selectedColor })
+    inTitle.value = ''; inTime.value = ''
+    inTitle.focus()
+    refresh()
+  }
+  document.getElementById('btnAdd').addEventListener('click', add)
+  inTitle.addEventListener('keydown', e => { if (e.key === 'Enter') add() })
+
+  document.getElementById('colorPick').addEventListener('click', e => {
+    const dot = e.target.closest('.color-dot')
+    if (!dot) return
+    document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('sel'))
+    dot.classList.add('sel')
+    selectedColor = dot.dataset.c
+  })
+
+  async function refresh() { state = await window.api.listTodos(); render() }
+
+  // ---- 렌더 ----
+  function fmtTime(ms) {
+    const d = new Date(ms)
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0')
+  }
+  function metaOf(t) {
+    if (!t.dueAt) return '종일'
+    const r = t.dueAt - Date.now()
+    const time = '⏰ ' + fmtTime(t.dueAt)
+    if (t.done) return time
+    if (r <= 0) return `${time} · <span class="urgent">💥 ${Math.max(1, Math.floor(-r/60000))}분 지남</span>`
+    const min = Math.floor(r / 60000)
+    const remain = min >= 60 ? `${Math.floor(min/60)}시간 ${min%60}분 남음` : `${min}분 남음`
+    return r <= 10*60000 ? `${time} · <span class="urgent">${remain}</span>` : `${time} · ${remain}`
+  }
+
+  function renderProfile() {
+    const p = state.profile
+    if (!p) return
+    document.getElementById('ptLabel').textContent = p.total.toLocaleString()
+    const sc = document.getElementById('streakChip')
+    if (p.streak && p.streak.count > 0) {
+      sc.style.display = 'flex'
+      document.getElementById('streakLabel').textContent = p.streak.count + '일'
+    } else sc.style.display = 'none'
+
+    const lv = p.level
+    document.getElementById('lvIcon').textContent = lv.icon
+    document.getElementById('lvName').textContent = `Lv.${lv.n} ${lv.title}`
+    if (lv.next) {
+      const span = lv.next - lv.min
+      const pct = Math.min(100, Math.round((p.total - lv.min) / span * 100))
+      document.getElementById('lvFill').style.width = pct + '%'
+      document.getElementById('lvSub').textContent = `다음 레벨까지 ⚡ ${(lv.next - p.total).toLocaleString()}`
+    } else {
+      document.getElementById('lvFill').style.width = '100%'
+      document.getElementById('lvSub').textContent = '최고 레벨 달성!'
+    }
+
+    const doneCount = state.todos.filter(t => t.done).length
+    document.getElementById('stToday').textContent = `${doneCount}/${state.todos.length}`
+    const tp = document.getElementById('stTodayPt')
+    tp.textContent = (p.todayPoints >= 0 ? '+' : '') + p.todayPoints
+    tp.className = p.todayPoints >= 0 ? 'plus' : ''
+    if (p.todayPoints < 0) tp.style.color = 'var(--red)'; else tp.style.color = ''
+    document.getElementById('stTotal').textContent = p.stats.totalDone.toLocaleString()
+
+    // 뱃지
+    const grid = document.getElementById('badgeGrid')
+    grid.innerHTML = ''
+    for (const b of p.badges) {
+      const div = document.createElement('div')
+      div.className = 'badge ' + (b.at ? 'owned' : 'locked')
+      div.title = b.desc + (b.at ? '' : ' (미획득)')
+      div.innerHTML = `<div class="b-icon">${b.icon}</div><div class="b-name">${b.name}</div>`
+      grid.appendChild(div)
+    }
+
+    // 포인트 내역
+    const ledger = document.getElementById('ledger')
+    ledger.innerHTML = ''
+    if (!p.ledger.length) {
+      ledger.innerHTML = '<div class="empty" style="padding:14px 0">할 일을 완료하면 ⚡ 포인트가 쌓입니다</div>'
+    }
+    for (const e of p.ledger) {
+      const row = document.createElement('div')
+      row.className = 'ledger-row'
+      const d = new Date(e.at)
+      const timeStr = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+      row.innerHTML = `<span class="l-reason"></span><span style="color:var(--faint);font-size:11px;flex-shrink:0">${timeStr}</span><span class="l-delta ${e.delta >= 0 ? 'pos' : 'neg'}">${e.delta >= 0 ? '+' : ''}${e.delta}</span>`
+      row.querySelector('.l-reason').textContent = e.reason
+      ledger.appendChild(row)
+    }
+
+    // 라운지 프로필
+    document.getElementById('pcAvatar').textContent = lv.icon
+    document.getElementById('pcName').textContent = `Lv.${lv.n} ${lv.title}`
+    const badgeCount = p.badges.filter(b => b.at).length
+    document.getElementById('pcSub').textContent =
+      `⚡ ${p.total.toLocaleString()} · 뱃지 ${badgeCount}개 · 🔥 ${p.streak ? p.streak.count : 0}일 연속`
+  }
+
+  function render() {
+    if (editingId) return
+    renderProfile()
+    const list = document.getElementById('list')
+    list.innerHTML = ''
+    if (!state.todos.length) {
+      list.innerHTML = '<div class="empty">아직 등록된 할 일이 없어요.<br>위에서 시간과 함께 추가해보세요!</div>'
+      return
+    }
+    for (const t of state.todos) {
+      const div = document.createElement('div')
+      div.className = `item b-${t.color} ${t.done ? 'done-item' : ''}`
+      div.innerHTML = `
+        <div class="chk ${t.done ? 'on' : ''}">${t.done ? '✔' : ''}</div>
+        <div class="i-body">
+          <div class="i-title"></div>
+          <div class="i-meta">${metaOf(t)}${t.notionPageId ? '<span class="notion-tag">notion</span>' : ''}</div>
+        </div>
+        <div class="i-actions">
+          ${t.done ? '' : '<button data-act="pp">+10분</button><button data-act="edit">✏️</button>'}
+          <button data-act="del">🗑️</button>
+        </div>`
+      div.querySelector('.i-title').textContent = t.title
+      div.querySelector('.chk').addEventListener('click', async () => { await window.api.toggleTodo(t.id); refresh() })
+      div.querySelector('[data-act=del]').addEventListener('click', async () => { await window.api.deleteTodo(t.id); refresh() })
+      const pp = div.querySelector('[data-act=pp]')
+      if (pp) pp.addEventListener('click', async () => { await window.api.postponeTodo(t.id, 10); refresh() })
+      const ed = div.querySelector('[data-act=edit]')
+      if (ed) ed.addEventListener('click', () => startEdit(div, t))
+      list.appendChild(div)
+    }
+  }
+
+  function startEdit(div, t) {
+    editingId = t.id
+    const body = div.querySelector('.i-body')
+    div.querySelector('.i-actions').style.display = 'none'
+    const timeVal = t.dueAt ? fmtTime(t.dueAt) : ''
+    body.innerHTML = `
+      <div class="edit-form">
+        <input type="time" class="e-time" value="${timeVal}">
+        <input type="text" class="e-title" maxlength="80">
+        <button class="btn-save">저장</button>
+        <button class="btn-cancel">취소</button>
+      </div>`
+    const eTitle = body.querySelector('.e-title')
+    eTitle.value = t.title
+    eTitle.focus()
+    body.querySelector('.btn-save').addEventListener('click', async () => {
+      await window.api.updateTodo(t.id, { title: eTitle.value, time: body.querySelector('.e-time').value })
+      editingId = null
+      refresh()
+    })
+    body.querySelector('.btn-cancel').addEventListener('click', () => { editingId = null; refresh() })
+    eTitle.addEventListener('keydown', e => {
+      if (e.key === 'Enter') body.querySelector('.btn-save').click()
+      if (e.key === 'Escape') { editingId = null; refresh() }
+    })
+  }
+
+  // ---- 포인트 상점 ----
+  const SHOP_THEMES = [
+    { id: 'classic', name: '클래식', cost: 0, colors: ['#fbbf24', '#f472b6', '#60a5fa', '#4ade80'] },
+    { id: 'neon', name: '네온', cost: 150, colors: ['#ffe600', '#ff4da6', '#2eb0ff', '#3bf05e'] },
+    { id: 'kraft', name: '크라프트', cost: 200, colors: ['#d9bf85', '#d4a48f', '#aec0ba', '#bcc488'] },
+    { id: 'midnight', name: '미드나잇', cost: 300, colors: ['#33301b', '#33202b', '#1e2a3d', '#1e3324'] }
+  ]
+  let settingsCache = null
+
+  function renderShop() {
+    if (!settingsCache) return
+    const grid = document.getElementById('shopGrid')
+    const unlocked = settingsCache.unlockedThemes || ['classic']
+    const active = settingsCache.postitTheme || 'classic'
+    grid.innerHTML = ''
+    for (const th of SHOP_THEMES) {
+      const owned = unlocked.includes(th.id)
+      const isActive = active === th.id
+      const card = document.createElement('div')
+      card.className = 'shop-card' + (isActive ? ' active' : '')
+      card.innerHTML = `
+        <div class="shop-name"><span>${th.name}</span>${owned ? '<span style="font-size:11px;color:var(--green)">보유</span>' : ''}</div>
+        <div class="shop-dots">${th.colors.map(c => `<span style="background:${c}"></span>`).join('')}</div>
+        <button class="shop-btn ${isActive ? 'on' : owned ? '' : 'buy'}">
+          ${isActive ? '적용 중' : owned ? '적용하기' : `⚡ ${th.cost} 구입`}
+        </button>`
+      if (!isActive) {
+        card.querySelector('.shop-btn').addEventListener('click', async () => {
+          const r = await window.api.buyTheme(th.id)
+          const msg = document.getElementById('shopMsg')
+          if (r.ok) {
+            settingsCache = r.settings
+            msg.textContent = ''
+            renderShop()
+            refresh()
+          } else {
+            msg.textContent = '❌ ' + r.error
+          }
+        })
+      }
+      grid.appendChild(card)
+    }
+  }
+
+  // ---- 설정 ----
+  const inToken = document.getElementById('inNotionToken')
+  const inDb = document.getElementById('inNotionDb')
+  const inAuto = document.getElementById('inAutoStart')
+  const inVol = document.getElementById('inVolume')
+  const volLabel = document.getElementById('volLabel')
+  const syncStatus = document.getElementById('syncStatus')
+
+  window.api.getSettings().then(s => {
+    settingsCache = s
+    inToken.value = s.notionToken || ''
+    inDb.value = s.notionDb || ''
+    inAuto.checked = !!s.openAtLogin
+    inVol.value = s.sirenVolume ?? 0.5
+    volLabel.textContent = Math.round((s.sirenVolume ?? 0.5) * 100) + '%'
+    renderShop()
+  })
+
+  inAuto.addEventListener('change', () => window.api.setSettings({ openAtLogin: inAuto.checked }))
+  inVol.addEventListener('input', () => { volLabel.textContent = Math.round(inVol.value * 100) + '%' })
+  inVol.addEventListener('change', () => window.api.setSettings({ sirenVolume: parseFloat(inVol.value) }))
+
+  document.getElementById('btnSync').addEventListener('click', async () => {
+    syncStatus.className = 'sync-status'
+    syncStatus.textContent = '동기화 중...'
+    let db = inDb.value.trim()
+    const m = db.match(/[0-9a-f]{32}/i)
+    if (m) db = m[0]
+    await window.api.setSettings({ notionToken: inToken.value.trim(), notionDb: db })
+    inDb.value = db
+    const r = await window.api.syncNotion()
+    if (r.ok) {
+      syncStatus.className = 'sync-status ok'
+      syncStatus.textContent = `✅ 동기화 완료 — 오늘 일정 ${r.count}건 (신규 ${r.added}건)`
+      refresh()
+    } else {
+      syncStatus.className = 'sync-status err'
+      syncStatus.textContent = '❌ ' + r.error
+    }
+  })
+</script>
+</body>
+</html>
