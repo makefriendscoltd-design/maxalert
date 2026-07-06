@@ -104,8 +104,8 @@
 
   <div id="chickWrap">
     <canvas id="chickCanvas"></canvas>
-    <video id="chickVideo" src="../assets/chick.mp4" muted playsinline style="display:none"></video>
-    <video id="chickMarch" src="../assets/chick_march.mp4" muted playsinline loop style="display:none"></video>
+    <video id="chickVideo" src="../assets/chick.mp4" muted playsinline preload="auto" style="display:none"></video>
+    <video id="chickMarch" src="../assets/chick_march.mp4" muted playsinline loop preload="auto" style="display:none"></video>
   </div>
 
 <script>
@@ -151,12 +151,20 @@
 
   // ---- 병아리 경찰관 (그린스크린 실시간 크로마키 + 순찰 루프) ----
   // 등장(왼쪽→가운데, 걸어와서 노려봄) → 노려보기 유지 → 옆모습 행진으로 오른쪽 퇴장 → 반복
+  // 성능: 468×624 고정 해상도로 처리하고, 새 비디오 프레임이 올 때만 크로마키 연산 (정지 중 CPU 0)
   ;(function () {
+    const isPrimary = params.get('sound') === '1'
+    const wrap = document.getElementById('chickWrap')
+    if (!isPrimary) { wrap.remove(); return } // 병아리는 주 모니터에서만 (보조 모니터 부하 절감)
+
     const videoIn = document.getElementById('chickVideo')   // 정면 등장 + 노려봄
     const videoMarch = document.getElementById('chickMarch') // 옆모습 제자리 행진
-    const wrap = document.getElementById('chickWrap')
     const canvas = document.getElementById('chickCanvas')
     const kx = canvas.getContext('2d', { willReadFrequently: true })
+
+    const PROC_W = 468, PROC_H = 624 // 3:4 — 표시 크기 기준 충분한 해상도
+    canvas.width = PROC_W
+    canvas.height = PROC_H
 
     const OFF_L = 'translateX(-50%) translateX(-75vw)'
     const CENTER = 'translateX(-50%)'
@@ -165,16 +173,52 @@
     const EXIT_MS = 2800
 
     let active = null
+    let pumpId = 0
     let marchOk = true
     let stopped = false
 
     videoIn.addEventListener('error', () => { wrap.style.display = 'none'; stopped = true })
     videoMarch.addEventListener('error', () => { marchOk = false })
+    videoIn.load()
+    videoMarch.load() // 전환 시 버퍼링 없도록 미리 로드
 
+    function processFrame() {
+      if (!active || active.readyState < 2) return
+      kx.drawImage(active, 0, 0, PROC_W, PROC_H)
+      const frame = kx.getImageData(0, 0, PROC_W, PROC_H)
+      const d = frame.data
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i], g = d[i + 1], b = d[i + 2]
+        // 초록 지배 픽셀 → 투명 (어두운 비네트 그린까지 커버)
+        if (g > 55 && g > r * 1.2 && g > b * 1.2) {
+          d[i + 3] = 0
+        } else if (g > 45 && g > r * 1.05 && g > b * 1.05) {
+          // 경계 픽셀은 반투명 + 초록 번짐 제거
+          d[i + 3] = Math.min(d[i + 3], 110)
+          d[i + 1] = Math.max(r, b)
+        } else if (g > r && g > b) {
+          d[i + 1] = Math.max(r, b)
+        }
+      }
+      kx.putImageData(frame, 0, 0)
+    }
+
+    // 새 비디오 프레임이 도착할 때만 처리 (requestVideoFrameCallback)
     function setActive(v) {
       active = v
-      canvas.width = v.videoWidth
-      canvas.height = v.videoHeight
+      const id = ++pumpId
+      const step = () => {
+        if (stopped || id !== pumpId) return
+        processFrame()
+        schedule()
+      }
+      const schedule = () => {
+        if (stopped || id !== pumpId) return
+        if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step)
+        else requestAnimationFrame(step)
+      }
+      processFrame()
+      schedule()
     }
 
     const sleep = ms => new Promise(r => setTimeout(r, ms))
@@ -193,7 +237,7 @@
         wrap.style.transform = CENTER
         await onceEnded(videoIn)
 
-        // 2) 마지막 프레임(노려보는 표정)으로 잠시 대치
+        // 2) 마지막 프레임(노려보는 표정)으로 잠시 대치 — 프레임이 멈추므로 연산도 멈춤
         await sleep(GLARE_HOLD_MS)
 
         // 3) 퇴장: 행진 영상 없으면 계속 노려보기만
@@ -210,32 +254,8 @@
 
     videoIn.addEventListener('loadedmetadata', () => {
       wrap.style.display = 'block'
-      drawLoop()
       cycle()
     })
-
-    function drawLoop() {
-      if (active && active.readyState >= 2) {
-        kx.drawImage(active, 0, 0)
-        const frame = kx.getImageData(0, 0, canvas.width, canvas.height)
-        const d = frame.data
-        for (let i = 0; i < d.length; i += 4) {
-          const r = d[i], g = d[i + 1], b = d[i + 2]
-          // 초록 지배 픽셀 → 투명 (어두운 비네트 그린까지 커버)
-          if (g > 55 && g > r * 1.2 && g > b * 1.2) {
-            d[i + 3] = 0
-          } else if (g > 45 && g > r * 1.05 && g > b * 1.05) {
-            // 경계 픽셀은 반투명 + 초록 번짐 제거
-            d[i + 3] = Math.min(d[i + 3], 110)
-            d[i + 1] = Math.max(r, b)
-          } else if (g > r && g > b) {
-            d[i + 1] = Math.max(r, b)
-          }
-        }
-        kx.putImageData(frame, 0, 0)
-      }
-      if (!stopped) requestAnimationFrame(drawLoop)
-    }
   })()
 
   // ---- 코드블루 사이렌 사운드 (Web Audio 합성) ----
