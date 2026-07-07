@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "MaxAlert 창들이 사용하는 core API 권한 (invoke + event listen)",
+  "windows": ["*"],
+  "permissions": [
+    "core:default"
+  ]
+}

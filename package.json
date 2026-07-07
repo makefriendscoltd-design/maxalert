@@ -7,7 +7,10 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win --publish never",
-    "release": "electron-builder --win --publish always"
+    "release": "electron-builder --win --publish always",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "author": "makefriends",
   "license": "MIT",
@@ -47,10 +50,12 @@
     }
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2",
     "electron": "^33.2.0",
     "electron-builder": "^26.15.3"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2",
     "electron-updater": "^6.8.9"
   }
 }
