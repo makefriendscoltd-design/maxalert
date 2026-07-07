@@ -327,7 +327,10 @@
     </div>
   </div>
 
-  <div class="section-label">오늘의 할 일</div>
+  <div class="section-label" style="display:flex; justify-content:space-between; align-items:center;">
+    <span>오늘의 할 일</span>
+    <button id="btnReport" style="font-size:12px; padding:5px 10px; cursor:pointer;">📋 보고 복사</button>
+  </div>
   <div id="list"></div>
 
   <div class="section-label">뱃지 컬렉션</div>
@@ -368,12 +371,20 @@
         <label>데이터베이스 ID</label>
         <input type="text" id="inNotionDb" placeholder="URL을 통째로 붙여넣어도 됩니다">
       </div>
+      <div class="set-row">
+        <label>담당자 (나)</label>
+        <select id="inNotionAssignee" style="flex:1; font-size:13px; padding:8px 10px;">
+          <option value="">전체 (필터 없음)</option>
+        </select>
+        <button id="btnLoadUsers" style="white-space:nowrap; font-size:12px; padding:8px 10px;">불러오기</button>
+      </div>
       <button class="btn-sync" id="btnSync">저장하고 지금 동기화</button>
       <div class="sync-status" id="syncStatus"></div>
       <div class="note">
         notion.so/my-integrations에서 통합(Integration)을 만들어 토큰을 발급받고,
         일정 DB에 해당 통합을 연결(⋯ → 연결 → 통합 선택)하세요.
-        제목·날짜(시간 포함)·체크박스 속성을 자동 감지하며 1분마다 동기화됩니다.
+        제목·날짜(시간 포함)·체크박스·담당자(사람) 속성을 자동 감지하며 1분마다 동기화됩니다.
+        담당자를 고르면 <b>내 일정만</b> 가져옵니다 (노션 뷰 필터는 팀 공유라 건드리지 않아도 됨).
       </div>
     </div>
   </details>
@@ -624,15 +635,62 @@
   // ---- 설정 ----
   const inToken = document.getElementById('inNotionToken')
   const inDb = document.getElementById('inNotionDb')
+  const inAssignee = document.getElementById('inNotionAssignee')
+  const btnLoadUsers = document.getElementById('btnLoadUsers')
   const inAuto = document.getElementById('inAutoStart')
   const inVol = document.getElementById('inVolume')
   const volLabel = document.getElementById('volLabel')
   const syncStatus = document.getElementById('syncStatus')
 
+  // 담당자 드롭다운 채우기 (저장된 값 우선 표시)
+  function fillAssignee(users) {
+    const saved = settingsCache?.notionAssignee
+    inAssignee.innerHTML = '<option value="">전체 (필터 없음)</option>'
+    // 목록을 못 불러왔어도 저장된 담당자는 유지해서 보여줌
+    const list = users && users.length ? users
+      : (saved ? [{ id: saved.id, name: saved.name }] : [])
+    for (const u of list) {
+      const opt = document.createElement('option')
+      opt.value = u.id
+      opt.textContent = u.name
+      inAssignee.appendChild(opt)
+    }
+    inAssignee.value = saved?.id || ''
+  }
+
+  async function loadUsers() {
+    if (!inToken.value.trim()) { syncStatus.className = 'sync-status err'; syncStatus.textContent = '❌ 토큰을 먼저 입력하세요'; return }
+    // 토큰이 바뀌었을 수 있으니 먼저 저장
+    await window.api.setSettings({ notionToken: inToken.value.trim() })
+    btnLoadUsers.disabled = true; btnLoadUsers.textContent = '...'
+    const r = await window.api.listNotionUsers()
+    btnLoadUsers.disabled = false; btnLoadUsers.textContent = '불러오기'
+    if (r.ok) fillAssignee(r.users)
+    else { syncStatus.className = 'sync-status err'; syncStatus.textContent = '❌ ' + r.error }
+  }
+
+  const btnReport = document.getElementById('btnReport')
+  btnReport.addEventListener('click', async () => {
+    const r = await window.api.copyReport()
+    if (r.ok) {
+      const orig = btnReport.textContent
+      btnReport.textContent = '✅ 복사됨!'
+      setTimeout(() => { btnReport.textContent = orig }, 1500)
+    }
+  })
+
+  btnLoadUsers.addEventListener('click', loadUsers)
+  inAssignee.addEventListener('change', () => {
+    const id = inAssignee.value
+    const name = inAssignee.options[inAssignee.selectedIndex]?.textContent || ''
+    window.api.setSettings({ notionAssignee: id ? { id, name } : null })
+  })
+
   window.api.getSettings().then(s => {
     settingsCache = s
     inToken.value = s.notionToken || ''
     inDb.value = s.notionDb || ''
+    fillAssignee(null)
     inAuto.checked = !!s.openAtLogin
     inVol.value = s.sirenVolume ?? 0.5
     volLabel.textContent = Math.round((s.sirenVolume ?? 0.5) * 100) + '%'
@@ -654,8 +712,10 @@
     const r = await window.api.syncNotion()
     if (r.ok) {
       syncStatus.className = 'sync-status ok'
-      syncStatus.textContent = `✅ 동기화 완료 — 오늘 일정 ${r.count}건 (신규 ${r.added}건)`
+      syncStatus.textContent = `✅ 동기화 완료 — 오늘 일정 ${r.count}건 (신규 ${r.added}건, 제거 ${r.removed || 0}건)`
       refresh()
+      // 담당자 목록이 아직 비어있으면 자동으로 불러와 채움
+      if (inAssignee.options.length <= 1) loadUsers()
     } else {
       syncStatus.className = 'sync-status err'
       syncStatus.textContent = '❌ ' + r.error

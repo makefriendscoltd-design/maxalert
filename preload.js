@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('api', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (s) => ipcRenderer.invoke('settings:set', s),
   syncNotion: () => ipcRenderer.invoke('notion:sync'),
+  listNotionUsers: () => ipcRenderer.invoke('notion:users'),
+  copyReport: () => ipcRenderer.invoke('report:copy'),
   buyTheme: (id) => ipcRenderer.invoke('shop:buyTheme', id),
   openDashboard: () => ipcRenderer.invoke('dashboard:open'),
   quitApp: () => ipcRenderer.invoke('app:quit'),

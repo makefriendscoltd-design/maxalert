@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage } = require('electron')
+const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, clipboard } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const { autoUpdater } = require('electron-updater')
@@ -423,7 +423,8 @@ async function syncNotion() {
   notionBusy = true
   try {
     const schema = await getSchemaFor(notionToken, notionDb)
-    const pages = await notion.queryDay(notionToken, notionDb, schema, todayStr(), tomorrowStr())
+    const assigneeId = store.data.settings.notionAssignee?.id || null
+    const pages = await notion.queryDay(notionToken, notionDb, schema, todayStr(), tomorrowStr(), assigneeId)
     let added = 0
     const now = Date.now()
     for (const p of pages) {
@@ -477,9 +478,20 @@ async function syncNotion() {
         }
       }
     }
+    // 필터에 더는 안 잡히는 오늘 노션 일정 제거 (담당자 변경/재배정 반영)
+    const returnedIds = new Set(pages.map(p => p.id))
+    const today = todayStr()
+    let removed = 0
+    store.data.todos = store.data.todos.filter(t => {
+      if (t.notionPageId && t.date === today && !returnedIds.has(t.notionPageId)) {
+        removed++
+        return false
+      }
+      return true
+    })
     store.save()
     pushTodos()
-    return { ok: true, count: pages.length, added, at: Date.now() }
+    return { ok: true, count: pages.length, added, removed, at: Date.now() }
   } catch (err) {
     return { ok: false, error: String(err.message || err) }
   } finally {
@@ -502,6 +514,26 @@ function pickColor(seed) {
   let h = 0
   for (const c of String(seed)) h = (h * 31 + c.charCodeAt(0)) >>> 0
   return COLORS[h % COLORS.length]
+}
+
+// 오늘 일정을 완료/미완료로 정리한 MD 보고서 생성
+function buildDailyReport() {
+  const todos = store.todosOn(todayStr()).sort(sortTodos)
+  const done = todos.filter(t => t.done)
+  const fmt = (ms) => {
+    const d = new Date(ms)
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
+  }
+  const line = (t) => `- ${t.dueAt ? '`' + fmt(t.dueAt) + '` ' : ''}${t.title}`
+  const name = store.data.settings.notionAssignee?.name
+  const header = name ? `${name} | ${todayStr()} 업무 보고` : `${todayStr()} 업무 보고`
+  const L = []
+  L.push(`## 📋 ${header}`)
+  L.push('')
+  L.push(`완료 **${done.length}** / 전체 ${todos.length}`)
+  L.push('')
+  L.push(done.length ? done.map(line).join('\n') : '- (완료한 항목 없음)')
+  return L.join('\n')
 }
 
 function applyLoginItem() {
@@ -655,6 +687,23 @@ function registerIpc() {
   })
 
   ipcMain.handle('notion:sync', () => syncNotion())
+
+  ipcMain.handle('report:copy', () => {
+    const md = buildDailyReport()
+    clipboard.writeText(md)
+    return { ok: true, text: md }
+  })
+
+  ipcMain.handle('notion:users', async () => {
+    const { notionToken } = store.data.settings
+    if (!notionToken) return { ok: false, error: '노션 토큰을 먼저 입력하세요' }
+    try {
+      const users = await notion.listUsers(notionToken)
+      return { ok: true, users }
+    } catch (err) {
+      return { ok: false, error: String(err.message || err) }
+    }
+  })
 
   ipcMain.handle('dashboard:open', () => { showDashboard(); return true })
 
