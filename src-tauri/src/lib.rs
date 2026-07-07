@@ -135,13 +135,13 @@ fn show_dashboard(app: &AppHandle) {
 fn primary_work_area(app: &AppHandle) -> (f64, f64, f64, f64) {
     if let Ok(Some(m)) = app.primary_monitor() {
         let scale = m.scale_factor();
-        let p = m.position();
-        let s = m.size();
+        // Electron workArea 대응: 메뉴바·독을 제외한 실사용 영역 (논리좌표 변환)
+        let wa = m.work_area();
         return (
-            p.x as f64 / scale,
-            p.y as f64 / scale,
-            s.width as f64 / scale,
-            s.height as f64 / scale,
+            wa.position.x as f64 / scale,
+            wa.position.y as f64 / scale,
+            wa.size.width as f64 / scale,
+            wa.size.height as f64 / scale,
         );
     }
     (0.0, 0.0, 1440.0, 900.0)
@@ -192,9 +192,63 @@ fn create_postit_window(app: &AppHandle) {
             let handle = app2.clone();
             win.on_window_event(move |ev| {
                 if let WindowEvent::Moved(pos) = ev {
-                    persist_postit_pos(&handle, pos.x, pos.y);
+                    // Electron 은 논리좌표를 저장하므로 scale 로 나눠 통일한다.
+                    let scale = handle
+                        .get_webview_window("postit")
+                        .and_then(|w| w.scale_factor().ok())
+                        .unwrap_or(1.0);
+                    persist_postit_pos(
+                        &handle,
+                        (pos.x as f64 / scale).round() as i32,
+                        (pos.y as f64 / scale).round() as i32,
+                    );
                 }
             });
+        }
+    });
+}
+
+// macOS Tauri 는 ignore_cursor_events 상태에서 Electron 의 forward 처럼 mousemove 를
+// 웹뷰에 전달해주지 않는다. 그래서 클릭스루 해제 판정에 쓸 커서 좌표를 Rust 가
+// 전역 폴링해 postit 웹뷰로 밀어준다. 판정(.interactive 위인지)은 api-tauri.js
+// 한 곳에서만 한다 — Rust 는 좌표 공급과 토글 실행만 담당.
+fn spawn_postit_cursor_poll(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_millis(80));
+        let mut was_inside = false;
+        let mut last_sent: Option<(i32, i32)> = None;
+        loop {
+            interval.tick().await;
+            let Some(win) = app.get_webview_window("postit") else {
+                continue;
+            };
+            if !win.is_visible().unwrap_or(false) {
+                continue;
+            }
+            let Ok(cursor) = app.cursor_position() else {
+                continue;
+            };
+            let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) else {
+                continue;
+            };
+            let inside = cursor.x >= pos.x as f64
+                && cursor.y >= pos.y as f64
+                && cursor.x < pos.x as f64 + size.width as f64
+                && cursor.y < pos.y as f64 + size.height as f64;
+            if inside {
+                let scale = win.scale_factor().unwrap_or(1.0);
+                let lx = ((cursor.x - pos.x as f64) / scale).round() as i32;
+                let ly = ((cursor.y - pos.y as f64) / scale).round() as i32;
+                if last_sent != Some((lx, ly)) {
+                    last_sent = Some((lx, ly));
+                    let _ = app.emit_to("postit", "postit:cursor", json!({ "x": lx, "y": ly }));
+                }
+                was_inside = true;
+            } else if was_inside {
+                was_inside = false;
+                last_sent = None;
+                let _ = app.emit_to("postit", "postit:cursor", json!({ "x": -1, "y": -1 }));
+            }
         }
     });
 }
@@ -1115,6 +1169,7 @@ pub fn run() {
             show_dashboard(&handle);
             spawn_tick(handle.clone());
             spawn_notion_poll(handle.clone());
+            spawn_postit_cursor_poll(handle.clone());
             Ok(())
         })
         .build(tauri::generate_context!())

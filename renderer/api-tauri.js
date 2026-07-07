@@ -56,4 +56,67 @@
     onTodos: function (cb) { listen('todos', function (e) { cb(e.payload); }); },
     onSirenTodo: function (cb) { listen('siren:todo', function (e) { cb(e.payload); }); }
   };
+
+  // ---- 포스트잇 클릭스루 제어 (Tauri 전용) ----
+  // macOS 는 ignore_cursor_events 상태에서 mousemove 를 웹뷰에 전달하지 않아
+  // (Electron forward:true 부재) postit.html 의 hover 해제 로직이 실행될 기회가 없다.
+  // Rust 가 postit:cursor 로 창-로컬 논리좌표를 밀어주면, 여기서 postit.html 352~356줄과
+  // 동일한 규칙(.interactive closest)으로 판정해 상태 변화 시에만 토글한다.
+  if (location.pathname.indexOf('postit') !== -1) {
+    var through = true;
+    listen('postit:cursor', function (e) {
+      var p = e.payload || {};
+      var el = (p.x >= 0 && p.y >= 0) ? document.elementFromPoint(p.x, p.y) : null;
+      var interactive = !!(el && el.closest && el.closest('.interactive'));
+      if (interactive && through) {
+        through = false;
+        invoke('postit_mouse', { ignore: false });
+      } else if (!interactive && !through) {
+        through = true;
+        invoke('postit_mouse', { ignore: true });
+      }
+    });
+  }
+
+  // ---- 시간 입력 보정 (Tauri 전용) ----
+  // WKWebView 의 input[type=time] 은 UI/값 반영이 불완전해 사용자가 시간을 골라도
+  // value 가 빈 문자열로 남는다 (실데이터로 확인: dueAt null). Tauri 런타임에서는
+  // 예측 가능한 텍스트 입력으로 강제 전환하고 HH:MM 으로 정규화한다.
+  // Electron(Chromium) 은 이 래퍼가 no-op 이므로 네이티브 타임 피커를 유지한다.
+  if (location.pathname.indexOf('dashboard') !== -1) {
+    var fixTimeInput = function () {
+      var input = document.getElementById('inTime');
+      if (!input || input.dataset.maxalertTimeFixed) return;
+      input.dataset.maxalertTimeFixed = '1';
+      input.type = 'text';
+      input.placeholder = 'HH:MM';
+      input.style.width = '5.5em';
+      var normalize = function () {
+        var v = input.value.trim();
+        if (!v) return;
+        var h, m;
+        if (v.indexOf(':') !== -1) {
+          var parts = v.split(':');
+          h = parseInt(parts[0], 10);
+          m = parseInt(parts[1], 10);
+        } else {
+          var digits = v.replace(/[^0-9]/g, '');
+          if (digits.length === 3) { h = parseInt(digits.slice(0, 1), 10); m = parseInt(digits.slice(1), 10); }
+          else if (digits.length === 4) { h = parseInt(digits.slice(0, 2), 10); m = parseInt(digits.slice(2), 10); }
+          else if (digits.length >= 1 && digits.length <= 2) { h = parseInt(digits, 10); m = 0; }
+          else { input.value = ''; return; }
+        }
+        if (isNaN(h) || isNaN(m) || h > 23 || m > 59 || h < 0 || m < 0) { input.value = ''; return; }
+        input.value = (h < 10 ? '0' + h : '' + h) + ':' + (m < 10 ? '0' + m : '' + m);
+      };
+      input.addEventListener('blur', normalize);
+      input.addEventListener('change', normalize);
+      input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') normalize(); });
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', fixTimeInput);
+    } else {
+      fixTimeInput();
+    }
+  }
 })();

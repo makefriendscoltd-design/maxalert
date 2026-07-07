@@ -26,7 +26,6 @@
       "preload.js",
       "lib/**",
       "renderer/**",
-      "assets/**",
       "package.json"
     ],
     "win": {
