@@ -448,37 +448,19 @@ async function syncNotion() {
         store.data.todos.push(t)
         added++
       } else {
+        // 일정의 제목/날짜/시간 소스는 노션. 완료(done)는 앱 로컬 전용(노션 안 건드림).
         existing.title = p.title
-        // 오늘 조회에 잡힌 = 오늘 유효한 일정이므로 날짜를 오늘로 이동
-        // (반복/기간 일정이 어제 날짜에 갇혀 오늘 목록에서 사라지던 문제 방지)
-        existing.date = todayStr()
-        // 노션 쪽 날짜가 바뀐 경우만 로컬에 반영 (로컬 미루기 보존)
         if (p.dueAt !== existing.notionDueAt) {
           existing.dueAt = p.dueAt
           existing.notionDueAt = p.dueAt
           delete existing.ackDue
         }
-        if (p.done !== existing.notionDone) {
-          // 노션에서 체크 상태가 바뀜 → 로컬 반영
-          existing.done = p.done
-          existing.notionDone = p.done
-          if (p.done) {
-            existing.doneAt = now
-            existing.awarded = 10
-            addPoints(10, `완료(노션): ${existing.title}`)
-            store.data.stats.totalDone++
-            checkBadges()
-            maybeReward()
-          } else {
-            existing.doneAt = null
-            addPoints(-(existing.awarded || 10), `완료 취소(노션): ${existing.title}`)
-            existing.awarded = 0
-            store.data.stats.totalDone = Math.max(0, store.data.stats.totalDone - 1)
-          }
-        } else if (existing.done !== p.done) {
-          // 로컬에서 체크 상태가 바뀜 → 노션에 반영
-          await notion.setDone(notionToken, p.id, schema.doneProp, existing.done)
-          existing.notionDone = existing.done
+        // 지난 날짜에 있던 항목이 오늘 다시 잡힘 = 새 반복 occurrence → 완료 상태 초기화 후 오늘로 이동
+        if (existing.date !== todayStr()) {
+          existing.done = false
+          existing.doneAt = null
+          existing.awarded = 0
+          existing.date = todayStr()
         }
       }
     }
@@ -501,15 +483,6 @@ async function syncNotion() {
   } finally {
     notionBusy = false
   }
-}
-
-function pushNotionDone(t) {
-  const { notionToken, notionDb } = store.data.settings
-  if (!notionToken || !notionDb || !t.notionPageId) return
-  getSchemaFor(notionToken, notionDb)
-    .then(schema => notion.setDone(notionToken, t.notionPageId, schema.doneProp, t.done))
-    .then(() => { t.notionDone = t.done; store.save() })
-    .catch(() => {})
 }
 
 // ---------- 기타 ----------
@@ -652,7 +625,6 @@ function registerIpc() {
     }
     store.save()
     pushTodos()
-    pushNotionDone(t)
     if (t.done) maybeReward()
     return t
   })
