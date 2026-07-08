@@ -25,17 +25,18 @@ let schemaCache = null // { key, schema }
 let quitting = false
 
 // ---------- 포인트 / 레벨 / 뱃지 ----------
+// 알 → (금이 가며 깨짐) → 병아리 → 닭 으로 자라는 진화 레벨. 포인트(min) 구간은 유지.
 const LEVELS = [
-  { min: 0, title: '산만한 금붕어', icon: '🐠' },
-  { min: 100, title: '두리번 다람쥐', icon: '🐿️' },
-  { min: 250, title: '갈팡질팡 고양이', icon: '🐱' },
-  { min: 500, title: '정신차린 부엉이', icon: '🦉' },
-  { min: 900, title: '계획하는 비버', icon: '🦫' },
-  { min: 1400, title: '몰입하는 돌고래', icon: '🐬' },
-  { min: 2000, title: '칼같은 여우', icon: '🦊' },
-  { min: 2800, title: '강철 늑대', icon: '🐺' },
-  { min: 3800, title: '시간의 독수리', icon: '🦅' },
-  { min: 5000, title: '타임 마스터', icon: '⏳' }
+  { min: 0, title: '잠꾸러기 알', icon: '🥚', stage: 'egg' },        // 멀쩡한 알
+  { min: 100, title: '꿈틀대는 알', icon: '🥚', stage: 'egg-crack' }, // 금이 가기 시작
+  { min: 250, title: '부화 시작', icon: '🐣', stage: 'hatch' },       // 껍질 깨고 얼굴 빼꼼
+  { min: 500, title: '껍질 깨는 중', icon: '🐣', stage: 'hatch2' },   // 거의 다 깨짐
+  { min: 900, title: '갓난 병아리', icon: '🐤', stage: 'chick' },
+  { min: 1400, title: '씩씩한 병아리', icon: '🐥', stage: 'chick2' },
+  { min: 2000, title: '풋내기 닭', icon: '🐔', stage: 'hen' },
+  { min: 2800, title: '당당한 닭', icon: '🐔', stage: 'hen2' },
+  { min: 3800, title: '우두머리 장닭', icon: '🐓', stage: 'rooster' },
+  { min: 5000, title: '전설의 갓닭', icon: '🐓', stage: 'legend' }
 ]
 
 const BADGES = [
@@ -448,6 +449,9 @@ async function syncNotion() {
         added++
       } else {
         existing.title = p.title
+        // 오늘 조회에 잡힌 = 오늘 유효한 일정이므로 날짜를 오늘로 이동
+        // (반복/기간 일정이 어제 날짜에 갇혀 오늘 목록에서 사라지던 문제 방지)
+        existing.date = todayStr()
         // 노션 쪽 날짜가 바뀐 경우만 로컬에 반영 (로컬 미루기 보존)
         if (p.dueAt !== existing.notionDueAt) {
           existing.dueAt = p.dueAt
