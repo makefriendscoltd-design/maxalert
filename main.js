@@ -478,12 +478,13 @@ async function syncNotion() {
         }
       }
     }
-    // 필터에 더는 안 잡히는 오늘 노션 일정 제거 (담당자 변경/재배정 반영)
+    // 필터에 더는 안 잡히는 오늘 노션 "미완료" 일정만 제거 (담당자 재배정 등).
+    // 완료된 항목은 오늘의 기록이므로 절대 지우지 않음.
     const returnedIds = new Set(pages.map(p => p.id))
     const today = todayStr()
     let removed = 0
     store.data.todos = store.data.todos.filter(t => {
-      if (t.notionPageId && t.date === today && !returnedIds.has(t.notionPageId)) {
+      if (t.notionPageId && !t.done && t.date === today && !returnedIds.has(t.notionPageId)) {
         removed++
         return false
       }
@@ -507,23 +508,33 @@ function pickColor(seed) {
   return COLORS[h % COLORS.length]
 }
 
-// 오늘 일정을 완료/미완료로 정리한 MD 보고서 생성
+// 오늘 완료 기록을 MD 보고서로 생성.
+// 완료 이력은 포인트 원장에서 복원 → 동기화가 todos를 삭제/리셋해도 기록이 보존됨.
 function buildDailyReport() {
-  const todos = store.todosOn(todayStr()).sort(sortTodos)
-  const done = todos.filter(t => t.done)
+  const today = todayStr()
+  const events = store.data.points.ledger
+    .filter(e => dateStrOf(new Date(e.at)) === today)
+    .slice().reverse() // 오래된→최신 순
+  const done = new Map() // 제목 -> 첫 완료 시각
+  for (const e of events) {
+    let m = e.reason.match(/^완료(?:\(노션\))?:\s*(.+?)(?:\s*\(정시.*\))?$/)
+    if (m) { if (!done.has(m[1])) done.set(m[1], e.at); continue }
+    m = e.reason.match(/^완료 취소(?:\(노션\))?:\s*(.+)$/)
+    if (m) done.delete(m[1])
+  }
   const fmt = (ms) => {
     const d = new Date(ms)
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
   }
-  const line = (t) => `- ${t.dueAt ? '`' + fmt(t.dueAt) + '` ' : ''}${t.title}`
   const name = store.data.settings.notionAssignee?.name
-  const header = name ? `${name} | ${todayStr()} 업무 보고` : `${todayStr()} 업무 보고`
+  const header = name ? `${name} | ${today} 업무 보고` : `${today} 업무 보고`
+  const entries = [...done.entries()].sort((a, b) => a[1] - b[1])
   const L = []
   L.push(`## 📋 ${header}`)
   L.push('')
-  L.push(`완료 **${done.length}** / 전체 ${todos.length}`)
+  L.push(`완료 **${entries.length}**건`)
   L.push('')
-  L.push(done.length ? done.map(line).join('\n') : '- (완료한 항목 없음)')
+  L.push(entries.length ? entries.map(([t, at]) => `- \`${fmt(at)}\` ${t}`).join('\n') : '- (완료한 항목 없음)')
   return L.join('\n')
 }
 
