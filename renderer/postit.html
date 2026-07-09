@@ -60,6 +60,13 @@
   /* 위젯이 화면 왼쪽에 있으면 슬라이드 방향 반전 (왼쪽 가장자리에 자연스레 붙음) */
   body { --dir: 1; }
   body.side-left { --dir: -1; }
+  /* 왼쪽 도킹: 내용도 좌우 반전해서 보이는 쪽(오른쪽 가장자리)에 붙임 */
+  body.side-left .p-title { text-align: right; }
+  body.side-left .p-time { flex-direction: row-reverse; }
+  body.side-left .p-actions { flex-direction: row-reverse; justify-content: flex-start; }
+  body.side-left .bomb { right: auto; left: -5px; }
+  body.side-left .boom-icon { right: auto; left: -9px; }
+  body.side-left .fuse-bar { transform: scaleX(-1); }
   .postit:hover {
     --peek: 0%;
     transform: translateX(0) rotate(0) translateY(-3px) scale(1.02);
