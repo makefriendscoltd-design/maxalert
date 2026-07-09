@@ -66,6 +66,10 @@
     display: flex; align-items: center; justify-content: center;
     font-size: 26px; flex-shrink: 0;
   }
+  .level-icon img, .pc-avatar img {
+    width: 100%; height: 100%; object-fit: contain; display: block;
+  }
+  .level-icon img { padding: 4px; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.35)); }
   .level-name { font-size: 16px; font-weight: 800; }
   .level-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .level-bar {
@@ -250,6 +254,7 @@
     background: linear-gradient(135deg, var(--accent), var(--accent2));
     display: flex; align-items: center; justify-content: center; font-size: 24px;
   }
+  .pc-avatar img { padding: 3px; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3)); }
   .pc-name { font-weight: 800; font-size: 14px; }
   .pc-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .lounge-note { font-size: 12px; color: var(--faint); margin-top: 11px; line-height: 1.65; }
@@ -412,6 +417,7 @@
   let state = { todos: [], streak: null, profile: null }
   let selectedColor = 'yellow'
   let editingId = null
+  const stageIconState = {}
 
   const now = new Date()
   const DAYS = ['일','월','화','수','목','금','토']
@@ -473,7 +479,7 @@
     } else sc.style.display = 'none'
 
     const lv = p.level
-    document.getElementById('lvIcon').textContent = lv.icon
+    updateStageIcon('lvIcon', lv)
     document.getElementById('lvName').textContent = `Lv.${lv.n} ${lv.title}`
     if (lv.next) {
       const span = lv.next - lv.min
@@ -521,11 +527,31 @@
     }
 
     // 라운지 프로필
-    document.getElementById('pcAvatar').textContent = lv.icon
+    updateStageIcon('pcAvatar', lv)
     document.getElementById('pcName').textContent = `Lv.${lv.n} ${lv.title}`
     const badgeCount = p.badges.filter(b => b.at).length
     document.getElementById('pcSub').textContent =
       `⚡ ${p.total.toLocaleString()} · 뱃지 ${badgeCount}개 · 🔥 ${p.streak ? p.streak.count : 0}일 연속`
+  }
+
+  function updateStageIcon(id, lv) {
+    const el = document.getElementById(id)
+    const nextStage = lv.stage || ''
+    const prev = stageIconState[id] || {}
+    if (prev.stage === nextStage && prev.icon === lv.icon) return
+    stageIconState[id] = { stage: nextStage, icon: lv.icon }
+    el.textContent = ''
+    if (!nextStage) {
+      el.textContent = lv.icon
+      return
+    }
+    const img = document.createElement('img')
+    img.src = `../assets/level/${nextStage}.png`
+    img.alt = `Lv.${lv.n} ${lv.title}`
+    img.addEventListener('error', () => {
+      el.textContent = lv.icon
+    }, { once: true })
+    el.appendChild(img)
   }
 
   function render() {

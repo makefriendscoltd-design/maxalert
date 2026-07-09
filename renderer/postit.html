@@ -219,6 +219,30 @@
     border-radius: 12px;
     padding: 13px; font-size: 12px; display: none; line-height: 1.7;
   }
+
+  .level-character-row {
+    display: flex; justify-content: flex-end; padding: 0 4px 2px;
+    pointer-events: none;
+  }
+  body.side-left .level-character-row { justify-content: flex-start; }
+  .level-character {
+    border: none; background: transparent; padding: 0;
+    cursor: pointer; pointer-events: auto; font-family: inherit;
+  }
+  .level-character img {
+    height: 64px; max-width: 92px; object-fit: contain; display: block;
+    filter: drop-shadow(0 8px 12px rgba(0,0,0,0.45));
+  }
+  .level-character .fallback {
+    display: none; align-items: center; justify-content: center;
+    min-width: 54px; height: 42px; padding: 0 14px;
+    border-radius: 999px; background: rgba(13, 15, 20, 0.88);
+    border: 1px solid rgba(255,255,255,0.12);
+    box-shadow: 0 8px 18px rgba(0,0,0,0.28);
+    font-size: 24px;
+  }
+  .level-character.fallback-mode img { display: none; }
+  .level-character.fallback-mode .fallback { display: flex; }
 </style>
 </head>
 <body>
@@ -230,9 +254,16 @@
   </div>
   <div id="stack"></div>
   <div class="empty-hint" id="emptyHint">오늘의 할 일이 없어요.<br>📝 버튼으로 추가하세요!</div>
+  <div class="level-character-row">
+    <button class="level-character interactive" id="levelCharacter" style="display:none">
+      <img id="levelCharacterImg" alt="">
+      <span class="fallback" id="levelCharacterFallback">🥚</span>
+    </button>
+  </div>
 
 <script>
   let state = { todos: [], profile: null }
+  let currentLevelStage = ''
 
   window.api.onTodos(data => { state = data; render() })
   window.api.listTodos().then(data => { state = data; render() })
@@ -240,6 +271,7 @@
 
   document.getElementById('btnOpen').addEventListener('click', () => window.api.openDashboard())
   document.getElementById('btnQuit').addEventListener('click', () => window.api.quitApp())
+  document.getElementById('levelCharacter').addEventListener('click', () => window.api.openDashboard())
 
   // ---- 그립 드래그로 위젯 이동 (메인 프로세스가 커서 추적) ----
   let dragging = false
@@ -335,7 +367,10 @@
 
   function render() {
     const now = Date.now()
-    if (state.profile) document.getElementById('ptLabel').textContent = state.profile.total.toLocaleString()
+    if (state.profile) {
+      document.getElementById('ptLabel').textContent = state.profile.total.toLocaleString()
+      updateLevelCharacter(state.profile.level)
+    }
     const bodyCls = 'theme-' + (state.theme || 'classic') + ' side-' + (state.side || 'right')
     if (document.body.className !== bodyCls) document.body.className = bodyCls
     const stack = document.getElementById('stack')
@@ -356,6 +391,26 @@
       if (t) updatePostit(el, t, now)
     }
   }
+
+  function updateLevelCharacter(level) {
+    const btn = document.getElementById('levelCharacter')
+    if (!level) { btn.style.display = 'none'; return }
+    const img = document.getElementById('levelCharacterImg')
+    const fallback = document.getElementById('levelCharacterFallback')
+    btn.style.display = ''
+    btn.title = `Lv.${level.n} ${level.title}`
+    fallback.textContent = level.icon
+    if (level.stage !== currentLevelStage) {
+      currentLevelStage = level.stage || ''
+      btn.classList.remove('fallback-mode')
+      if (currentLevelStage) img.src = `../assets/level/${currentLevelStage}.png`
+      else btn.classList.add('fallback-mode')
+    }
+  }
+
+  document.getElementById('levelCharacterImg').addEventListener('error', () => {
+    document.getElementById('levelCharacter').classList.add('fallback-mode')
+  })
 
   // 마우스 통과 제어: 포스트잇/버튼 위에서만 클릭 활성화
   let through = true

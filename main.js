@@ -65,7 +65,7 @@ function levelInfo(total) {
   for (let i = 0; i < LEVELS.length; i++) if (total >= LEVELS[i].min) idx = i
   const cur = LEVELS[idx]
   const next = LEVELS[idx + 1] || null
-  return { n: idx + 1, title: cur.title, icon: cur.icon, min: cur.min, next: next ? next.min : null }
+  return { n: idx + 1, title: cur.title, icon: cur.icon, stage: cur.stage, min: cur.min, next: next ? next.min : null }
 }
 
 function ownBadge(id) { return store.data.badges.some(b => b.id === id) }
@@ -271,6 +271,7 @@ function sirenEligible(t, now) {
 function openSiren(todo) {
   sirenTodoId = todo.id
   const primaryId = screen.getPrimaryDisplay().id
+  const stage = levelInfo(store.data.points.total).stage
   sirenWins = screen.getAllDisplays().map(d => {
     const w = new BrowserWindow({
       x: d.bounds.x, y: d.bounds.y,
@@ -289,6 +290,7 @@ function openSiren(todo) {
     w.loadFile('renderer/siren.html', {
       query: {
         sound: d.id === primaryId ? '1' : '0',
+        stage,
         volume: String(store.data.settings.sirenVolume ?? 0.5)
       }
     })
@@ -395,6 +397,7 @@ function maybeReward() {
     total: store.data.points.total,
     title: li.title,
     icon: li.icon,
+    stage: li.stage,
     next: li.next || '',
     min: li.min
   })
