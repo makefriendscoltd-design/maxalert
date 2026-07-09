@@ -12,7 +12,9 @@
     "windows": [],
     "security": {
       "csp": null,
-      "capabilities": ["default"]
+      "capabilities": [
+        "default"
+      ]
     }
   },
   "bundle": {
@@ -25,6 +27,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "category": "Productivity"
+    "category": "Productivity",
+    "macOS": {
+      "signingIdentity": "-"
+    }
   }
 }
