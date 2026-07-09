@@ -246,9 +246,12 @@ function createPostitWindow() {
   postitWin.setIgnoreMouseEvents(true, { forward: true })
   postitWin.loadFile('renderer/postit.html')
   postitWin.webContents.on('did-finish-load', () => pushTodos())
-  // 드래그로 옮긴 위치 기억
+  // 드래그로 옮긴 위치 기억 + 화면 중앙을 넘어가면 슬라이드 방향 반전
   let moveTimer = null
+  let lastSide = null
   postitWin.on('move', () => {
+    const side = postitSide()
+    if (side !== lastSide) { lastSide = side; pushTodos() }
     clearTimeout(moveTimer)
     moveTimer = setTimeout(() => {
       if (!postitWin || postitWin.isDestroyed()) return
@@ -340,13 +343,24 @@ function tick() {
   if (tickCount % 15 === 0) pushTodos()
 }
 
+// 위젯이 화면의 어느 쪽 절반에 있는지 → 포스트잇 슬라이드 방향 결정용
+function postitSide() {
+  if (!postitWin || postitWin.isDestroyed()) return 'right'
+  const [x] = postitWin.getPosition()
+  const { width } = postitWin.getBounds()
+  const center = x + width / 2
+  const disp = screen.getDisplayNearestPoint({ x: Math.round(center), y: 0 })
+  return center < disp.workArea.x + disp.workArea.width / 2 ? 'left' : 'right'
+}
+
 function pushTodos() {
   const payload = {
     todos: store.todosOn(todayStr()).sort(sortTodos),
     now: Date.now(),
     streak: store.data.streak,
     profile: profilePayload(),
-    theme: store.data.settings.postitTheme || 'classic'
+    theme: store.data.settings.postitTheme || 'classic',
+    side: postitSide()
   }
   for (const w of [postitWin, dashboardWin]) {
     if (w && !w.isDestroyed()) w.webContents.send('todos', payload)
@@ -525,7 +539,8 @@ function registerIpc() {
     now: Date.now(),
     streak: store.data.streak,
     profile: profilePayload(),
-    theme: store.data.settings.postitTheme || 'classic'
+    theme: store.data.settings.postitTheme || 'classic',
+    side: postitSide()
   }))
 
   ipcMain.handle('shop:buyTheme', (_e, id) => {
