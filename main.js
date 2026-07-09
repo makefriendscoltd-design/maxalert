@@ -509,32 +509,45 @@ function pickColor(seed) {
 }
 
 // 오늘 완료 기록을 MD 보고서로 생성.
-// 완료 이력은 포인트 원장에서 복원 → 동기화가 todos를 삭제/리셋해도 기록이 보존됨.
-function buildDailyReport() {
+// ① 앱에서 ⚡완료한 것(포인트 원장) + ② 노션에서 체크한 것(오늘 담당자 일정 중 done) 합집합.
+// → 앱에서 체크하든 노션에서 체크하든 둘 다 보고에 잡힘. 노션은 읽기 전용.
+async function buildDailyReport() {
   const today = todayStr()
+  const done = new Map() // 제목 -> 완료 시각(ms) 또는 null
+  // ① 앱 완료 이력 (원장) — 동기화가 todos를 지워도 보존됨
   const events = store.data.points.ledger
     .filter(e => dateStrOf(new Date(e.at)) === today)
-    .slice().reverse() // 오래된→최신 순
-  const done = new Map() // 제목 -> 첫 완료 시각
+    .slice().reverse() // 오래된→최신
   for (const e of events) {
     let m = e.reason.match(/^완료(?:\(노션\))?:\s*(.+?)(?:\s*\(정시.*\))?$/)
     if (m) { if (!done.has(m[1])) done.set(m[1], e.at); continue }
     m = e.reason.match(/^완료 취소(?:\(노션\))?:\s*(.+)$/)
     if (m) done.delete(m[1])
   }
+  // ② 노션에서 체크한 완료 (오늘 내 담당 일정 중 done=true)
+  const { notionToken, notionDb, notionAssignee } = store.data.settings
+  if (notionToken && notionDb) {
+    try {
+      const schema = await getSchemaFor(notionToken, notionDb)
+      const rows = await notion.queryDay(notionToken, notionDb, schema, today, tomorrowStr(), notionAssignee?.id)
+      for (const r of rows) {
+        if (r.done && !done.has(r.title)) done.set(r.title, r.dueAt || null)
+      }
+    } catch { /* 노션 조회 실패 시 앱 기록만으로 진행 */ }
+  }
   const fmt = (ms) => {
     const d = new Date(ms)
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
   }
-  const name = store.data.settings.notionAssignee?.name
+  const name = notionAssignee?.name
   const header = name ? `${name} | ${today} 업무 보고` : `${today} 업무 보고`
-  const entries = [...done.entries()].sort((a, b) => a[1] - b[1])
+  const entries = [...done.entries()].sort((a, b) => (a[1] || 0) - (b[1] || 0))
   const L = []
   L.push(`## 📋 ${header}`)
   L.push('')
   L.push(`완료 **${entries.length}**건`)
   L.push('')
-  L.push(entries.length ? entries.map(([t, at]) => `- \`${fmt(at)}\` ${t}`).join('\n') : '- (완료한 항목 없음)')
+  L.push(entries.length ? entries.map(([t, at]) => `- ${at ? '`' + fmt(at) + '` ' : ''}${t}`).join('\n') : '- (완료한 항목 없음)')
   return L.join('\n')
 }
 
@@ -678,7 +691,7 @@ function registerIpc() {
     return t
   })
 
-  ipcMain.handle('settings:get', () => store.data.settings)
+  ipcMain.handle('settings:get', () => ({ ...store.data.settings, appVersion: app.getVersion() }))
 
   ipcMain.handle('settings:set', (_e, patch) => {
     Object.assign(store.data.settings, patch)
@@ -690,8 +703,8 @@ function registerIpc() {
 
   ipcMain.handle('notion:sync', () => syncNotion())
 
-  ipcMain.handle('report:copy', () => {
-    const md = buildDailyReport()
+  ipcMain.handle('report:copy', async () => {
+    const md = await buildDailyReport()
     clipboard.writeText(md)
     return { ok: true, text: md }
   })

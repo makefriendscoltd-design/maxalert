@@ -282,7 +282,7 @@
 <body>
   <div class="top">
     <div>
-      <div class="brand">Max<em>Alert</em> <span style="font-size:12px">🐥</span></div>
+      <div class="brand">Max<em>Alert</em> <span style="font-size:12px">🐥</span> <span id="verLabel" style="font-size:11px; color:var(--muted); font-weight:600"></span></div>
       <div class="date" id="dateLabel"></div>
     </div>
     <div class="chips">
@@ -688,6 +688,7 @@
 
   window.api.getSettings().then(s => {
     settingsCache = s
+    document.getElementById('verLabel').textContent = 'v' + (s.appVersion || '?')
     inToken.value = s.notionToken || ''
     inDb.value = s.notionDb || ''
     fillAssignee(null)
