@@ -1,7 +1,7 @@
 {
   "name": "maxalert",
   "productName": "MaxAlert",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "MaxAlert — 포스트잇 + 코드블루 사이렌 일정 알림 앱 (Windows/Mac)",
   "main": "main.js",
   "scripts": {

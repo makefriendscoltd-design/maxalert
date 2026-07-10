@@ -498,6 +498,16 @@ async function syncNotion() {
       }
       return true
     })
+    // 오늘 노션에서 "완료"로 확인된 항목 스냅샷 — 이후 노션에서 날짜를 옮기거나
+    // 지워도 업무보고에 보존됨. 같은 날 체크 해제되면 스냅샷에서도 제거.
+    const log = (store.data.doneLog = store.data.doneLog || {})
+    const todayLog = (log[today] = log[today] || {})
+    for (const p of pages) {
+      if (p.done) { if (!todayLog[p.title]) todayLog[p.title] = now }
+      else delete todayLog[p.title]
+    }
+    const cutoffStr = dateStrOf(new Date(now - 14 * 86400000))
+    for (const k of Object.keys(log)) if (k < cutoffStr) delete log[k]
     store.save()
     pushTodos()
     return { ok: true, count: pages.length, added, removed, at: Date.now() }
@@ -532,7 +542,13 @@ async function buildDailyReport() {
     m = e.reason.match(/^완료 취소(?:\(노션\))?:\s*(.+)$/)
     if (m) done.delete(m[1])
   }
-  // ② 노션에서 체크한 완료 (오늘 내 담당 일정 중 done=true)
+  // ② 오늘 동기화 중 "노션 완료"로 확인된 스냅샷 — 이후 노션에서 날짜를
+  //    옮기거나 지웠어도 여기 남아있음 (미루기/재배치로 인한 보고 누락 방지)
+  const todayLog = store.data.doneLog?.[today] || {}
+  for (const [title, at] of Object.entries(todayLog)) {
+    if (!done.has(title)) done.set(title, at || null)
+  }
+  // ③ 노션에서 체크한 완료 (오늘 내 담당 일정 중 done=true, 실시간 조회)
   const { notionToken, notionDb, notionAssignee } = store.data.settings
   if (notionToken && notionDb) {
     try {
@@ -541,7 +557,7 @@ async function buildDailyReport() {
       for (const r of rows) {
         if (r.done && !done.has(r.title)) done.set(r.title, r.dueAt || null)
       }
-    } catch { /* 노션 조회 실패 시 앱 기록만으로 진행 */ }
+    } catch { /* 노션 조회 실패 시 로컬 기록만으로 진행 */ }
   }
   const fmt = (ms) => {
     const d = new Date(ms)
