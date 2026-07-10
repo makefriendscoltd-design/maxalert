@@ -161,8 +161,13 @@ function init() {
 function setupAutoUpdate() {
   if (!app.isPackaged) return // 개발 모드에서는 비활성
   autoUpdater.autoDownload = true
-  autoUpdater.autoInstallOnAppQuit = true // 다운로드 후 앱 종료 시 자동 설치
-  const check = () => autoUpdater.checkForUpdatesAndNotify().catch(() => {})
+  autoUpdater.autoInstallOnAppQuit = true // 안전망: 즉시 설치가 실패해도 종료 시 설치
+  // 항상 켜두는 위젯 특성상 "종료 시 설치"만으로는 업데이트가 영영 안 깔림
+  // → 다운로드 완료 즉시 조용히 재시작+설치 (몇 초 내 새 버전으로 복귀)
+  autoUpdater.on('update-downloaded', () => {
+    setTimeout(() => autoUpdater.quitAndInstall(true, true), 3000)
+  })
+  const check = () => autoUpdater.checkForUpdates().catch(() => {})
   check()
   setInterval(check, 60 * 60 * 1000) // 1시간마다 확인
 }
