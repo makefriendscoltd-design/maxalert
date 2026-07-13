@@ -159,6 +159,12 @@
 
     // 사이렌 캐릭터는 레벨과 무관하게 항상 병아리 경찰관(걷는 비디오).
     // 레벨 진화 아트는 대시보드/위젯/리워드에서만 사용.
+    const sleep = ms => new Promise(r => setTimeout(r, ms))
+    const OFF_L = 'translateX(-50%) translateX(-75vw)'
+    const CENTER = 'translateX(-50%)'
+    const OFF_R = 'translateX(-50%) translateX(75vw)'
+    const GLARE_HOLD_MS = 2400
+    const EXIT_MS = 2800
     startVideoPipeline()
 
     function startVideoPipeline() {
