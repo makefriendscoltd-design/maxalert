@@ -247,7 +247,7 @@ function createPostitWindow() {
     alwaysOnTop: true,
     webPreferences: { preload: PRELOAD }
   })
-  postitWin.setAlwaysOnTop(true, 'floating')
+  postitWin.setAlwaysOnTop(true, 'screen-saver')
   postitWin.setIgnoreMouseEvents(true, { forward: true })
   postitWin.loadFile('renderer/postit.html')
   postitWin.webContents.on('did-finish-load', () => pushTodos())
@@ -329,6 +329,12 @@ function tick() {
   tickCount++
   const now = Date.now()
   const todos = store.todosOn(todayStr())
+
+  // 다른 프로그램(보안 SW, 전체화면 앱 등)이 topmost를 뺏으면 위젯이 창 뒤로
+  // 가려짐 → 주기적으로 "항상 위"를 재선언해서 복구 (5초마다, 비용 미미)
+  if (tickCount % 5 === 0 && postitWin && !postitWin.isDestroyed() && postitWin.isVisible()) {
+    postitWin.setAlwaysOnTop(true, 'screen-saver')
+  }
 
   if (sirenTodoId) {
     const cur = todos.find(t => t.id === sirenTodoId)
