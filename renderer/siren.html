@@ -82,7 +82,7 @@
     filter: drop-shadow(0 12px 28px rgba(0,0,0,0.6));
     display: none;
   }
-  #chickCanvas { height: 62vh; display: block; }
+  #chickWrap video { height: 62vh; display: block; }
 </style>
 </head>
 <body>
@@ -103,9 +103,8 @@
   </div>
 
   <div id="chickWrap">
-    <canvas id="chickCanvas"></canvas>
-    <video id="chickVideo" src="../assets/chick.mp4" muted playsinline preload="auto" style="display:none"></video>
-    <video id="chickMarch" src="../assets/chick_march.mp4" muted playsinline loop preload="auto" style="display:none"></video>
+    <video id="chickVideo" src="../assets/chick.webm" muted playsinline preload="auto"></video>
+    <video id="chickMarch" src="../assets/chick_march.webm" muted playsinline loop preload="auto" style="display:none"></video>
   </div>
 
 <script>
@@ -149,35 +148,22 @@
     })
   })
 
-  // ---- 병아리 경찰관 (그린스크린 실시간 크로마키 + 순찰 루프) ----
+  // ---- 병아리 경찰관 (투명 WebM 재생 + 순찰 루프) ----
   // 등장(왼쪽→가운데, 걸어와서 노려봄) → 노려보기 유지 → 옆모습 행진으로 오른쪽 퇴장 → 반복
-  // 성능: 468×624 고정 해상도로 처리하고, 새 비디오 프레임이 올 때만 크로마키 연산 (정지 중 CPU 0)
+  // 알파 채널이 영상에 미리 구워져 있어(VP9+alpha) 실시간 크로마키 연산 없음
+  // → CPU 부하 최소, 모든 모니터에서 부드럽게 재생
   ;(function () {
     const wrap = document.getElementById('chickWrap')
-    // 병아리 경찰관은 모든 모니터에 등장 (프레임 도착 시에만 크로마키 연산이라 부하 감당 가능)
+    const videoIn = document.getElementById('chickVideo')   // 정면 등장 + 노려봄
+    const videoMarch = document.getElementById('chickMarch') // 옆모습 제자리 행진
 
-    // 사이렌 캐릭터는 레벨과 무관하게 항상 병아리 경찰관(걷는 비디오).
-    // 레벨 진화 아트는 대시보드/위젯/리워드에서만 사용.
     const sleep = ms => new Promise(r => setTimeout(r, ms))
     const OFF_L = 'translateX(-50%) translateX(-75vw)'
     const CENTER = 'translateX(-50%)'
     const OFF_R = 'translateX(-50%) translateX(75vw)'
     const GLARE_HOLD_MS = 2400
     const EXIT_MS = 2800
-    startVideoPipeline()
 
-    function startVideoPipeline() {
-    const videoIn = document.getElementById('chickVideo')   // 정면 등장 + 노려봄
-    const videoMarch = document.getElementById('chickMarch') // 옆모습 제자리 행진
-    const canvas = document.getElementById('chickCanvas')
-    const kx = canvas.getContext('2d', { willReadFrequently: true })
-
-    const PROC_W = 468, PROC_H = 624 // 3:4 — 표시 크기 기준 충분한 해상도
-    canvas.width = PROC_W
-    canvas.height = PROC_H
-
-    let active = null
-    let pumpId = 0
     let marchOk = true
     let stopped = false
 
@@ -186,43 +172,9 @@
     videoIn.load()
     videoMarch.load() // 전환 시 버퍼링 없도록 미리 로드
 
-    function processFrame() {
-      if (!active || active.readyState < 2) return
-      kx.drawImage(active, 0, 0, PROC_W, PROC_H)
-      const frame = kx.getImageData(0, 0, PROC_W, PROC_H)
-      const d = frame.data
-      for (let i = 0; i < d.length; i += 4) {
-        const r = d[i], g = d[i + 1], b = d[i + 2]
-        // 초록 지배 픽셀 → 투명 (어두운 비네트 그린까지 커버)
-        if (g > 55 && g > r * 1.2 && g > b * 1.2) {
-          d[i + 3] = 0
-        } else if (g > 45 && g > r * 1.05 && g > b * 1.05) {
-          // 경계 픽셀은 반투명 + 초록 번짐 제거
-          d[i + 3] = Math.min(d[i + 3], 110)
-          d[i + 1] = Math.max(r, b)
-        } else if (g > r && g > b) {
-          d[i + 1] = Math.max(r, b)
-        }
-      }
-      kx.putImageData(frame, 0, 0)
-    }
-
-    // 새 비디오 프레임이 도착할 때만 처리 (requestVideoFrameCallback)
-    function setActive(v) {
-      active = v
-      const id = ++pumpId
-      const step = () => {
-        if (stopped || id !== pumpId) return
-        processFrame()
-        schedule()
-      }
-      const schedule = () => {
-        if (stopped || id !== pumpId) return
-        if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step)
-        else requestAnimationFrame(step)
-      }
-      processFrame()
-      schedule()
+    function show(v, other) {
+      other.style.display = 'none'
+      v.style.display = 'block'
     }
 
     const onceEnded = v => new Promise(r => v.addEventListener('ended', r, { once: true }))
@@ -232,7 +184,7 @@
         // 1) 등장: 왼쪽 화면 밖 → 가운데
         wrap.style.transition = 'none'
         wrap.style.transform = OFF_L
-        setActive(videoIn)
+        show(videoIn, videoMarch)
         videoIn.currentTime = 0
         videoIn.play().catch(() => {})
         await sleep(30) // transform 초기화 반영
@@ -240,12 +192,12 @@
         wrap.style.transform = CENTER
         await onceEnded(videoIn)
 
-        // 2) 마지막 프레임(노려보는 표정)으로 잠시 대치 — 프레임이 멈추므로 연산도 멈춤
+        // 2) 마지막 프레임(노려보는 표정)으로 잠시 대치
         await sleep(GLARE_HOLD_MS)
 
         // 3) 퇴장: 행진 영상 없으면 계속 노려보기만
         if (!marchOk) return
-        setActive(videoMarch)
+        show(videoMarch, videoIn)
         videoMarch.currentTime = 0
         videoMarch.play().catch(() => {})
         wrap.style.transition = `transform ${EXIT_MS}ms linear`
@@ -259,7 +211,6 @@
       wrap.style.display = 'block'
       cycle()
     })
-    }
   })()
 
   // ---- 코드블루 사이렌 사운드 (Web Audio 합성) ----
