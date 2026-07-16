@@ -270,7 +270,13 @@ fn toggle_postit(app: &AppHandle) {
 // ---------- 창: 사이렌 ----------
 fn siren_open(app: &AppHandle, todo: &Todo) {
     let state = app.state::<AppState>();
-    let volume = { state.store.lock().unwrap().data.settings.siren_volume };
+    let (volume, stage) = {
+        let store = state.store.lock().unwrap();
+        (
+            store.data.settings.siren_volume,
+            logic::level_info(store.data.points.total).stage,
+        )
+    };
     let gen = {
         let mut s = state.siren.lock().unwrap();
         s.generation += 1;
@@ -284,9 +290,10 @@ fn siren_open(app: &AppHandle, todo: &Todo) {
         let label = format!("siren-{}", i);
         let is_primary = primary_pos.map(|p| p == *m.position()).unwrap_or(i == 0);
         let url = format!(
-            "siren.html?sound={}&volume={}",
+            "siren.html?sound={}&volume={}&stage={}",
             if is_primary { 1 } else { 0 },
-            volume
+            volume,
+            urlencode(&stage)
         );
         let pos = *m.position();
         let size = *m.size();
@@ -380,12 +387,13 @@ fn open_reward(app: &AppHandle, info: logic::RewardInfo) {
     }
     let (px, py, pw, ph) = primary_bounds(app);
     let url = format!(
-        "reward.html?streak={}&today={}&total={}&title={}&icon={}&next={}&min={}",
+        "reward.html?streak={}&today={}&total={}&title={}&icon={}&stage={}&next={}&min={}",
         info.streak,
         info.today,
         info.total,
         urlencode(&info.title),
         urlencode(&info.icon),
+        urlencode(&info.stage),
         urlencode(&info.next),
         info.min
     );
@@ -549,6 +557,10 @@ async fn do_sync_inner(
                         notion_page_id: Some(p.id.clone()),
                         notion_due_at: p.due_at,
                         notion_done: Some(p.done),
+                        bridge_source: None,
+                        bridge_synced_at: None,
+                        deferred_from: None,
+                        deferred_at: None,
                     };
                     if let Some(d) = t.due_at {
                         if d < now {
@@ -784,6 +796,10 @@ fn todos_add(state: State<AppState>, app: AppHandle, payload: AddPayload) -> Opt
         notion_page_id: None,
         notion_due_at: None,
         notion_done: None,
+        bridge_source: None,
+        bridge_synced_at: None,
+        deferred_from: None,
+        deferred_at: None,
     };
     if let Some(time) = payload.time.filter(|s| !s.is_empty()) {
         if let Some(due) = parse_time_today(&time) {
@@ -969,6 +985,47 @@ fn todos_postpone(
 }
 
 #[tauri::command]
+fn todos_postpone_next_weekday(
+    state: State<AppState>,
+    app: AppHandle,
+    id: String,
+) -> Option<Todo> {
+    let clone;
+    {
+        let mut store = state.store.lock().unwrap();
+        let now = now_ms();
+        let idx = match store.data.todos.iter().position(|t| t.id == id) {
+            Some(i) => i,
+            None => return None,
+        };
+        if store.data.todos[idx].done {
+            return Some(store.data.todos[idx].clone());
+        }
+        let from_date = if store.data.todos[idx].date.is_empty() {
+            today_str()
+        } else {
+            store.data.todos[idx].date.clone()
+        };
+        let target_date = logic::next_weekday_after(&from_date)
+            .or_else(|| logic::next_weekday_after(&today_str()))
+            .unwrap_or_else(tomorrow_str);
+        store.data.todos[idx].date = target_date.clone();
+        store.data.todos[idx].due_at = store.data.todos[idx]
+            .due_at
+            .and_then(|due| logic::same_local_time_on_date(due, &target_date));
+        store.data.todos[idx].postpones = Some(store.data.todos[idx].postpones.unwrap_or(0) + 1);
+        store.data.todos[idx].ack_due = None;
+        store.data.todos[idx].deferred_from = Some(from_date);
+        store.data.todos[idx].deferred_at = Some(now);
+        store.save();
+        clone = store.data.todos[idx].clone();
+    }
+    push_todos(&app);
+    siren_close_if_target(&app, &id);
+    Some(clone)
+}
+
+#[tauri::command]
 fn settings_get(state: State<AppState>) -> Settings {
     state.store.lock().unwrap().data.settings.clone()
 }
@@ -1128,6 +1185,7 @@ pub fn run() {
             todos_toggle,
             todos_delete,
             todos_postpone,
+            todos_postpone_next_weekday,
             settings_get,
             settings_set,
             notion_sync,

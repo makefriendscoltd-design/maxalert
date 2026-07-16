@@ -66,6 +66,10 @@
     display: flex; align-items: center; justify-content: center;
     font-size: 26px; flex-shrink: 0;
   }
+  .level-icon img {
+    width: 42px; height: 42px; object-fit: contain;
+    filter: drop-shadow(0 5px 8px rgba(0,0,0,0.35));
+  }
   .level-name { font-size: 16px; font-weight: 800; }
   .level-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .level-bar {
@@ -171,7 +175,8 @@
   .i-actions button {
     border: 1px solid var(--border); background: var(--surface);
     color: var(--muted); border-radius: 7px; cursor: pointer;
-    font-size: 11.5px; padding: 5px 9px; font-family: inherit;
+    font-size: 11.5px; padding: 5px 8px; font-family: inherit;
+    white-space: nowrap;
   }
   .i-actions button:hover { color: var(--text); border-color: #3a4157; }
   .empty { text-align: center; color: var(--faint); padding: 34px 0; font-size: 13.5px; line-height: 1.7; }
@@ -293,9 +298,9 @@
 
   <div class="level-card">
     <div class="level-row">
-      <div class="level-icon" id="lvIcon">🐠</div>
+      <div class="level-icon" id="lvIcon">🥚</div>
       <div style="flex:1">
-        <div class="level-name" id="lvName">Lv.1 산만한 금붕어</div>
+        <div class="level-name" id="lvName">Lv.1 잠꾸러기 알</div>
         <div class="level-sub" id="lvSub"></div>
       </div>
     </div>
@@ -474,7 +479,7 @@
     } else sc.style.display = 'none'
 
     const lv = p.level
-    document.getElementById('lvIcon').textContent = lv.icon
+    renderLevelIcon(document.getElementById('lvIcon'), lv, 42)
     document.getElementById('lvName').textContent = `Lv.${lv.n} ${lv.title}`
     if (lv.next) {
       const span = lv.next - lv.min
@@ -522,11 +527,27 @@
     }
 
     // 라운지 프로필
-    document.getElementById('pcAvatar').textContent = lv.icon
+    renderLevelIcon(document.getElementById('pcAvatar'), lv, 56)
     document.getElementById('pcName').textContent = `Lv.${lv.n} ${lv.title}`
     const badgeCount = p.badges.filter(b => b.at).length
     document.getElementById('pcSub').textContent =
       `⚡ ${p.total.toLocaleString()} · 뱃지 ${badgeCount}개 · 🔥 ${p.streak ? p.streak.count : 0}일 연속`
+  }
+
+  function renderLevelIcon(container, level, size) {
+    container.textContent = ''
+    if (!level || !level.stage) {
+      container.textContent = level && level.icon ? level.icon : '🥚'
+      return
+    }
+    const img = document.createElement('img')
+    img.alt = ''
+    img.src = `assets/level/${level.stage}.png`
+    img.style.width = size + 'px'
+    img.style.height = size + 'px'
+    img.style.objectFit = 'contain'
+    img.onerror = () => { container.textContent = level.icon || '🥚' }
+    container.appendChild(img)
   }
 
   function render() {
@@ -548,7 +569,7 @@
           <div class="i-meta">${metaOf(t)}${t.notionPageId ? '<span class="notion-tag">notion</span>' : ''}</div>
         </div>
         <div class="i-actions">
-          ${t.done ? '' : '<button data-act="pp">+10분</button><button data-act="edit">✏️</button>'}
+          ${t.done ? '' : '<button data-act="pp">+10분</button><button data-act="nextday" title="주말은 건너뛰고 다음 평일로 이동">다음 평일</button><button data-act="edit">✏️</button>'}
           <button data-act="del">🗑️</button>
         </div>`
       div.querySelector('.i-title').textContent = t.title
@@ -556,6 +577,8 @@
       div.querySelector('[data-act=del]').addEventListener('click', async () => { await window.api.deleteTodo(t.id); refresh() })
       const pp = div.querySelector('[data-act=pp]')
       if (pp) pp.addEventListener('click', async () => { await window.api.postponeTodo(t.id, 10); refresh() })
+      const nextday = div.querySelector('[data-act=nextday]')
+      if (nextday) nextday.addEventListener('click', async () => { await window.api.postponeTodoToNextWeekday(t.id); refresh() })
       const ed = div.querySelector('[data-act=edit]')
       if (ed) ed.addEventListener('click', () => startEdit(div, t))
       list.appendChild(div)

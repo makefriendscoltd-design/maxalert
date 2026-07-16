@@ -50,6 +50,14 @@
     margin-top: 18px; display: flex; align-items: center; gap: 10px;
     justify-content: center; font-size: 15px; font-weight: 800;
   }
+  #lvIcon {
+    width: 44px; height: 44px; display: inline-flex;
+    align-items: center; justify-content: center; font-size: 26px;
+  }
+  #lvIcon img {
+    width: 100%; height: 100%; object-fit: contain;
+    filter: drop-shadow(0 5px 9px rgba(0,0,0,0.35));
+  }
   .hint { margin-top: 22px; font-size: 12px; color: #5b6274; }
 </style>
 </head>
@@ -65,7 +73,7 @@
       <div class="row"><span>연속 달성</span><span class="val fire" id="streakVal">🔥 1일</span></div>
       <div class="row"><span>누적 포인트</span><span class="val" id="totalPt">0 ⚡</span></div>
     </div>
-    <div class="level-line"><span id="lvIcon">🐠</span><span id="lvTitle"></span></div>
+    <div class="level-line"><span id="lvIcon">🥚</span><span id="lvTitle"></span></div>
     <div class="hint">아무 곳이나 클릭하면 닫힙니다</div>
   </div>
 
@@ -88,7 +96,19 @@
   document.getElementById('streakVal').textContent = `🔥 ${streak}일`
   document.getElementById('todayPt').textContent = `+${today} ⚡`
   document.getElementById('totalPt').textContent = `${total.toLocaleString()} ⚡`
-  document.getElementById('lvIcon').textContent = q.get('icon') || '🐠'
+  const lvIcon = document.getElementById('lvIcon')
+  const iconFallback = q.get('icon') || '🥚'
+  const stage = q.get('stage') || ''
+  if (stage) {
+    const img = document.createElement('img')
+    img.src = `assets/level/${stage}.png`
+    img.alt = q.get('title') || ''
+    img.addEventListener('error', () => { lvIcon.textContent = iconFallback }, { once: true })
+    lvIcon.textContent = ''
+    lvIcon.appendChild(img)
+  } else {
+    lvIcon.textContent = iconFallback
+  }
   document.getElementById('lvTitle').textContent = q.get('title') || ''
 
   document.body.addEventListener('click', () => window.api.closeReward())

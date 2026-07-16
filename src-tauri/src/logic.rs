@@ -2,7 +2,7 @@
 // 창/IPC 와 무관한 순수 함수만 두고 단위 테스트 대상으로 삼는다.
 use std::cmp::Ordering;
 
-use chrono::{Datelike, Local, TimeZone, Timelike};
+use chrono::{Datelike, Duration as ChronoDuration, Local, NaiveDate, TimeZone, Timelike, Weekday};
 use serde_json::{json, Value};
 
 use crate::store::{BadgeOwned, Data, LedgerEntry, Todo};
@@ -10,18 +10,18 @@ use crate::store::{BadgeOwned, Data, LedgerEntry, Todo};
 pub const SIREN_LEAD_MS: i64 = 3 * 60 * 1000; // 일정 3분 전부터 사이렌
 
 // ---------- 레벨 ----------
-// (min, title, icon)
-pub const LEVELS: &[(i64, &str, &str)] = &[
-    (0, "산만한 금붕어", "🐠"),
-    (100, "두리번 다람쥐", "🐿️"),
-    (250, "갈팡질팡 고양이", "🐱"),
-    (500, "정신차린 부엉이", "🦉"),
-    (900, "계획하는 비버", "🦫"),
-    (1400, "몰입하는 돌고래", "🐬"),
-    (2000, "칼같은 여우", "🦊"),
-    (2800, "강철 늑대", "🐺"),
-    (3800, "시간의 독수리", "🦅"),
-    (5000, "타임 마스터", "⏳"),
+// (min, title, icon, stage)
+pub const LEVELS: &[(i64, &str, &str, &str)] = &[
+    (0, "잠꾸러기 알", "🥚", "egg"),
+    (100, "꿈틀대는 알", "🥚", "egg-crack"),
+    (250, "부화 시작", "🐣", "hatch"),
+    (500, "껍질 깨는 중", "🐣", "hatch2"),
+    (900, "갓난 병아리", "🐤", "chick"),
+    (1400, "씩씩한 병아리", "🐥", "chick2"),
+    (2000, "풋내기 닭", "🐔", "hen"),
+    (2800, "당당한 닭", "🐔", "hen2"),
+    (3800, "우두머리 장닭", "🐓", "rooster"),
+    (5000, "전설의 갓닭", "🐓", "legend"),
 ];
 
 // ---------- 뱃지 ----------
@@ -73,6 +73,23 @@ pub fn tomorrow_str() -> String {
     date_str_of(now_ms() + 86_400_000)
 }
 
+pub fn next_weekday_after(date: &str) -> Option<String> {
+    let mut d = NaiveDate::parse_from_str(date, "%Y-%m-%d").ok()?;
+    loop {
+        d = d.checked_add_signed(ChronoDuration::days(1))?;
+        if !matches!(d.weekday(), Weekday::Sat | Weekday::Sun) {
+            return Some(format!("{:04}-{:02}-{:02}", d.year(), d.month(), d.day()));
+        }
+    }
+}
+
+pub fn same_local_time_on_date(ms: i64, date: &str) -> Option<i64> {
+    let src = local_of(ms);
+    let d = NaiveDate::parse_from_str(date, "%Y-%m-%d").ok()?;
+    let naive = d.and_hms_opt(src.hour(), src.minute(), src.second())?;
+    Local.from_local_datetime(&naive).single().map(|dt| dt.timestamp_millis())
+}
+
 fn hour_of(ms: i64) -> u32 {
     local_of(ms).hour()
 }
@@ -98,6 +115,7 @@ pub struct LevelInfo {
     pub n: usize,
     pub title: String,
     pub icon: String,
+    pub stage: String,
     pub min: i64,
     pub next: Option<i64>,
 }
@@ -115,6 +133,7 @@ pub fn level_info(total: i64) -> LevelInfo {
         n: idx + 1,
         title: cur.1.to_string(),
         icon: cur.2.to_string(),
+        stage: cur.3.to_string(),
         min: cur.0,
         next,
     }
@@ -213,6 +232,7 @@ pub fn profile_payload(data: &Data) -> Value {
             "n": li.n,
             "title": li.title,
             "icon": li.icon,
+            "stage": li.stage,
             "min": li.min,
             "next": li.next,
         },
@@ -270,6 +290,7 @@ pub struct RewardInfo {
     pub total: i64,
     pub title: String,
     pub icon: String,
+    pub stage: String,
     pub next: String,
     pub min: i64,
 }
@@ -302,6 +323,7 @@ pub fn maybe_reward(data: &mut Data) -> Option<RewardInfo> {
         total: data.points.total,
         title: li.title,
         icon: li.icon,
+        stage: li.stage,
         next: li.next.map(|n| n.to_string()).unwrap_or_default(),
         min: li.min,
     })
@@ -363,7 +385,18 @@ mod tests {
             notion_page_id: None,
             notion_due_at: None,
             notion_done: None,
+            bridge_source: None,
+            bridge_synced_at: None,
+            deferred_from: None,
+            deferred_at: None,
         }
+    }
+
+    #[test]
+    fn next_weekday_skips_weekend() {
+        assert_eq!(next_weekday_after("2026-07-09").as_deref(), Some("2026-07-10"));
+        assert_eq!(next_weekday_after("2026-07-10").as_deref(), Some("2026-07-13"));
+        assert_eq!(next_weekday_after("2026-07-11").as_deref(), Some("2026-07-13"));
     }
 
     #[test]
@@ -377,10 +410,12 @@ mod tests {
         // 최상위 레벨은 next 가 없다.
         let top = level_info(5000);
         assert_eq!(top.n, LEVELS.len());
-        assert_eq!(top.title, "타임 마스터");
+        assert_eq!(top.title, "전설의 갓닭");
+        assert_eq!(top.stage, "legend");
         assert_eq!(top.next, None);
         // 중간 레벨은 다음 경계를 가리킨다.
         assert_eq!(level_info(100).next, Some(250));
+        assert_eq!(level_info(250).stage, "hatch");
     }
 
     #[test]

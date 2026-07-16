@@ -38,6 +38,14 @@ pub struct Todo {
     pub notion_due_at: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notion_done: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bridge_source: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bridge_synced_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deferred_from: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deferred_at: Option<i64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

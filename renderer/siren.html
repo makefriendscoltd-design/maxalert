@@ -72,6 +72,11 @@
     border: 1px solid rgba(255,255,255,0.35);
     color: #fff;
   }
+  .btn-nextday {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255,255,255,0.42);
+    color: #fff;
+  }
   .hint { margin-top: 30px; font-size: 14px; opacity: 0.7; letter-spacing: 0.3px; }
 
   /* ===== 병아리 경찰관 ===== */
@@ -83,6 +88,14 @@
     display: none;
   }
   #chickCanvas { height: 62vh; display: block; }
+  #stageCharacter {
+    height: 52vh; display: block; object-fit: contain;
+    animation: stageBob 0.62s ease-in-out infinite alternate;
+  }
+  @keyframes stageBob {
+    from { transform: translateY(0); }
+    to { transform: translateY(-1.7vh); }
+  }
 </style>
 </head>
 <body>
@@ -98,6 +111,7 @@
       <button class="btn-snooze" data-min="5">5분 미루기</button>
       <button class="btn-snooze" data-min="15">15분 미루기</button>
       <button class="btn-snooze" data-min="60">1시간 미루기</button>
+      <button class="btn-nextday" id="btnNextday">다음 평일</button>
     </div>
     <div class="hint">완료 또는 미루기를 선택할 때까지 사이렌은 꺼지지 않습니다 · 미루기 -3⚡</div>
   </div>
@@ -113,6 +127,7 @@
   const params = new URLSearchParams(location.search)
   const withSound = params.get('sound') === '1'
   const volume = Math.min(1, Math.max(0, parseFloat(params.get('volume') || '0.5')))
+  const stage = params.get('stage') || ''
 
   let todo = null
 
@@ -149,6 +164,9 @@
       if (todo) window.api.postponeTodo(todo.id, parseInt(b.dataset.min, 10))
     })
   })
+  document.getElementById('btnNextday').addEventListener('click', () => {
+    if (todo) window.api.postponeTodoToNextWeekday(todo.id)
+  })
 
   // ---- 병아리 경찰관 (그린스크린 실시간 크로마키 + 순찰 루프) ----
   // 등장(왼쪽→가운데, 걸어와서 노려봄) → 노려보기 유지 → 옆모습 행진으로 오른쪽 퇴장 → 반복
@@ -158,6 +176,56 @@
     const wrap = document.getElementById('chickWrap')
     if (!isPrimary) { wrap.remove(); return } // 병아리는 주 모니터에서만 (보조 모니터 부하 절감)
 
+    const useVideoPipeline = !stage || stage === 'chick' || stage === 'chick2'
+    const sleep = ms => new Promise(r => setTimeout(r, ms))
+    const OFF_L = 'translateX(-50%) translateX(-75vw)'
+    const CENTER = 'translateX(-50%)'
+    const OFF_R = 'translateX(-50%) translateX(75vw)'
+    const GLARE_HOLD_MS = 2400
+    const EXIT_MS = 2800
+
+    function startStageImage() {
+      const img = document.createElement('img')
+      img.id = 'stageCharacter'
+      img.alt = ''
+      let stopped = false
+
+      img.addEventListener('error', () => {
+        stopped = true
+        img.remove()
+        wrap.style.display = 'none'
+        wrap.style.transition = 'none'
+        wrap.style.transform = OFF_L
+        startVideoPipeline()
+      }, { once: true })
+
+      img.addEventListener('load', () => {
+        wrap.appendChild(img)
+        wrap.style.display = 'block'
+        cycle()
+      }, { once: true })
+
+      async function cycle() {
+        while (!stopped) {
+          wrap.style.transition = 'none'
+          wrap.style.transform = OFF_L
+          await sleep(30)
+          wrap.style.transition = 'transform 3s cubic-bezier(0.3, 0, 0.4, 1)'
+          wrap.style.transform = CENTER
+          await sleep(3000 + GLARE_HOLD_MS)
+          wrap.style.transition = `transform ${EXIT_MS}ms linear`
+          wrap.style.transform = OFF_R
+          await sleep(EXIT_MS + 150)
+        }
+      }
+
+      img.src = `assets/level/${stage}.png`
+    }
+
+    if (!useVideoPipeline) { startStageImage(); return }
+    startVideoPipeline()
+
+    function startVideoPipeline() {
     const videoIn = document.getElementById('chickVideo')   // 정면 등장 + 노려봄
     const videoMarch = document.getElementById('chickMarch') // 옆모습 제자리 행진
     const canvas = document.getElementById('chickCanvas')
@@ -166,12 +234,6 @@
     const PROC_W = 468, PROC_H = 624 // 3:4 — 표시 크기 기준 충분한 해상도
     canvas.width = PROC_W
     canvas.height = PROC_H
-
-    const OFF_L = 'translateX(-50%) translateX(-75vw)'
-    const CENTER = 'translateX(-50%)'
-    const OFF_R = 'translateX(-50%) translateX(75vw)'
-    const GLARE_HOLD_MS = 2400
-    const EXIT_MS = 2800
 
     let active = null
     let pumpId = 0
@@ -222,7 +284,6 @@
       schedule()
     }
 
-    const sleep = ms => new Promise(r => setTimeout(r, ms))
     const onceEnded = v => new Promise(r => v.addEventListener('ended', r, { once: true }))
 
     async function cycle() {
@@ -257,6 +318,7 @@
       wrap.style.display = 'block'
       cycle()
     })
+    }
   })()
 
   // ---- 코드블루 사이렌 사운드 (Web Audio 합성) ----

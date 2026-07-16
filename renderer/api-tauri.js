@@ -41,6 +41,7 @@
     toggleTodo: function (id) { return invoke('todos_toggle', { id: id }); },
     deleteTodo: function (id) { return invoke('todos_delete', { id: id }); },
     postponeTodo: function (id, minutes) { return invoke('todos_postpone', { id: id, minutes: minutes }); },
+    postponeTodoToNextWeekday: function (id) { return invoke('todos_postpone_next_weekday', { id: id }); },
     getSettings: function () { return invoke('settings_get'); },
     setSettings: function (s) { return invoke('settings_set', { patch: s }); },
     syncNotion: function () { return invoke('notion_sync'); },
