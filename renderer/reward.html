@@ -11,12 +11,24 @@
     cursor: pointer;
     -webkit-font-smoothing: antialiased;
   }
+  .ic {
+    width: 1em; height: 1em; display: inline-block; flex: 0 0 auto;
+    vertical-align: -0.14em; color: inherit;
+  }
+  .egg {
+    display: inline-block; width: 28px; height: 35px;
+    border-radius: 50% 50% 46% 46%;
+    background: linear-gradient(160deg, #fff7e0, #f0d896);
+    border: 1px solid rgba(255,255,255,0.7);
+    box-shadow: inset -4px -5px 8px rgba(157,117,43,0.12), 0 5px 10px rgba(0,0,0,0.24);
+  }
   canvas { position: fixed; inset: 0; pointer-events: none; }
   .card {
-    background: rgba(13, 16, 25, 0.93);
+    background: linear-gradient(170deg, rgba(30,34,46,0.93), rgba(20,23,32,0.93));
+    -webkit-backdrop-filter: blur(14px);
     backdrop-filter: blur(14px);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 26px;
+    border: 1px solid rgba(140,160,255,0.22);
+    border-radius: 20px;
     padding: 44px 60px;
     text-align: center;
     color: #e9ecf4;
@@ -26,7 +38,10 @@
     min-width: 420px;
   }
   @keyframes pop { from { transform: scale(0.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-  .trophy { font-size: 72px; animation: bounce 1s infinite alternate; }
+  .trophy {
+    width: 72px; height: 72px; color: #fbbf24;
+    animation: bounce 1s infinite alternate;
+  }
   @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-12px); } }
   h1 {
     font-size: 30px; margin: 14px 0 6px; letter-spacing: -0.5px;
@@ -39,13 +54,14 @@
   .row {
     display: flex; justify-content: space-between; align-items: center;
     background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.07);
+    border: 1px solid rgba(140,160,255,0.16);
     border-radius: 12px; padding: 11px 16px;
     font-size: 14px; font-weight: 600;
   }
   .row .val { font-weight: 800; }
   .val.pts { color: #fbbf24; }
   .val.fire { color: #fb923c; }
+  .val.fire .ic { width: 15px; height: 15px; margin-right: 4px; }
   .level-line {
     margin-top: 18px; display: flex; align-items: center; gap: 10px;
     justify-content: center; font-size: 15px; font-weight: 800;
@@ -62,18 +78,35 @@
 </style>
 </head>
 <body>
+  <svg style="display:none" aria-hidden="true" focusable="false">
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path fill="currentColor" d="M13.2 2 4.8 13.2h6.1L9.8 22l9.4-12.3h-6.1z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M5 4 2.8 6.2M19 4l2.2 2.2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.2 4.2L19 6.5"/></symbol>
+    <symbol id="i-flame" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4.2 0 7-2.9 7-7.1 0-3.4-1.9-6.4-5.1-9.2.1 2.4-.8 4.1-2.2 5.4.2-3.3-1.5-6.1-4.2-8.1.2 4.8-3.7 7.4-3.7 11.9C3.8 19.1 6.9 22 12 22Z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3m3 0-1 14H7L6 7m4 4v6m4-6v6"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 20 4.2-1 10.6-10.6-3.2-3.2L5 15.8 4 20Zm10-13.2 3.2 3.2M4 20h5"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 8h7M9 12h7M9 16h7"/><circle cx="7" cy="8" r=".7" fill="currentColor" stroke="none"/><circle cx="7" cy="12" r=".7" fill="currentColor" stroke="none"/><circle cx="7" cy="16" r=".7" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-bomb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="14" r="7" fill="currentColor" stroke="none"/><path d="m15 8.5 2-2 2 1.5 1-2"/><circle cx="21" cy="4" r="1.3" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-burst" viewBox="0 0 24 24"><path fill="currentColor" d="m12 2 2.3 5.2 5.4-2.9-2.9 5.4L22 12l-5.2 2.3 2.9 5.4-5.4-2.9L12 22l-2.3-5.2-5.4 2.9 2.9-5.4L2 12l5.2-2.3-2.9-5.4 5.4 2.9z"/></symbol>
+    <symbol id="i-trophy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v4c0 4-1.8 6-4 6s-4-2-4-6V4Zm0 2H4v2c0 2.2 1.5 4 4 4m8-6h4v2c0 2.2-1.5 4-4 4m-4 2v4m-4 2h8"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9 7 7m10 10 2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10 13.8 4-3.6M8.5 16.5l-1 1a4 4 0 0 1-5.7-5.7l3-3a4 4 0 0 1 5.7 0M15.5 7.5l1-1a4 4 0 0 1 5.7 5.7l-3 3a4 4 0 0 1-5.7 0"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.4 2.5 3.6 5.5 3.6 9S14.4 18.5 12 21c-2.4-2.5-3.6-5.5-3.6-9S9.6 5.5 12 3Z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  </svg>
   <canvas id="confetti"></canvas>
   <div class="card">
-    <div class="trophy">🏆</div>
+    <svg class="trophy ic" aria-hidden="true"><use href="#i-trophy"/></svg>
     <h1>PERFECT DAY</h1>
     <div class="praise" id="praise"></div>
     <div class="rows">
-      <div class="row"><span>🎉 전체 완료 보너스</span><span class="val pts">+50 ⚡</span></div>
-      <div class="row"><span>오늘 획득 포인트</span><span class="val pts" id="todayPt">+0 ⚡</span></div>
-      <div class="row"><span>연속 달성</span><span class="val fire" id="streakVal">🔥 1일</span></div>
-      <div class="row"><span>누적 포인트</span><span class="val" id="totalPt">0 ⚡</span></div>
+      <div class="row"><span>전체 완료 보너스</span><span class="val pts">+50P</span></div>
+      <div class="row"><span>오늘 획득 포인트</span><span class="val pts" id="todayPt">+0P</span></div>
+      <div class="row"><span>연속 달성</span><span class="val fire" id="streakVal"><svg class="ic" aria-hidden="true"><use href="#i-flame"/></svg>1일</span></div>
+      <div class="row"><span>누적 포인트</span><span class="val" id="totalPt">0P</span></div>
     </div>
-    <div class="level-line"><span id="lvIcon">🥚</span><span id="lvTitle"></span></div>
+    <div class="level-line"><span id="lvIcon"><span class="egg" aria-hidden="true"></span></span><span id="lvTitle"></span></div>
     <div class="hint">아무 곳이나 클릭하면 닫힙니다</div>
   </div>
 
@@ -81,12 +114,12 @@
 
 <script>
   const PRAISES = [
-    '완벽한 하루였어요. 정말 대단해요! 👏',
-    '오늘의 나, 미래의 나에게 최고의 선물을 줬어요 🎁',
-    '미루지 않는 사람, 그게 바로 당신입니다 ✨',
-    '폭탄은 모두 해제됐습니다. 요원님, 수고하셨습니다 🕶️',
-    '오늘도 ADHD에게 완승! 🥊',
-    '계획한 것을 전부 해내는 사람은 생각보다 드뭅니다 🌟'
+    '완벽한 하루였어요. 정말 대단해요!',
+    '오늘의 나, 미래의 나에게 최고의 선물을 줬어요',
+    '미루지 않는 사람, 그게 바로 당신입니다',
+    '폭탄은 모두 해제됐습니다. 요원님, 수고하셨습니다',
+    '오늘도 ADHD에게 완승!',
+    '계획한 것을 전부 해내는 사람은 생각보다 드뭅니다'
   ]
   const q = new URLSearchParams(location.search)
   const streak = parseInt(q.get('streak') || '1', 10)
@@ -94,21 +127,29 @@
   const total = parseInt(q.get('total') || '0', 10)
 
   document.getElementById('praise').textContent = PRAISES[Math.floor(Math.random() * PRAISES.length)]
-  document.getElementById('streakVal').textContent = `🔥 ${streak}일`
-  document.getElementById('todayPt').textContent = `+${today} ⚡`
-  document.getElementById('totalPt').textContent = `${total.toLocaleString()} ⚡`
+  document.getElementById('streakVal').innerHTML = `<svg class="ic" aria-hidden="true"><use href="#i-flame"/></svg>${streak}일`
+  document.getElementById('todayPt').textContent = `+${today}P`
+  document.getElementById('totalPt').textContent = `${total.toLocaleString()}P`
   const lvIcon = document.getElementById('lvIcon')
-  const iconFallback = q.get('icon') || '🐠'
   const stage = q.get('stage') || ''
+
+  function renderEgg() {
+    lvIcon.textContent = ''
+    const egg = document.createElement('span')
+    egg.className = 'egg'
+    egg.setAttribute('aria-hidden', 'true')
+    lvIcon.appendChild(egg)
+  }
+
   if (stage) {
     const img = document.createElement('img')
     img.src = `assets/level/${stage}.png`
     img.alt = q.get('title') || ''
-    img.addEventListener('error', () => { lvIcon.textContent = iconFallback }, { once: true })
+    img.addEventListener('error', renderEgg, { once: true })
     lvIcon.textContent = ''
     lvIcon.appendChild(img)
   } else {
-    lvIcon.textContent = iconFallback
+    renderEgg()
   }
   document.getElementById('lvTitle').textContent = q.get('title') || ''
 

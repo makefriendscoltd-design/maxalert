@@ -1,6 +1,7 @@
 // JSON 저장소 — lib/store.js 와 동일 스키마.
 // Electron(maxalert-data.json)이 쓴 파일을 Tauri 가 읽고, 그 역도 성립해야 한다.
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
@@ -85,6 +86,8 @@ pub struct Settings {
     pub unlocked_themes: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub postit_pos: Option<PostitPos>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub postit_mini_pos: HashMap<String, PostitPos>,
     #[serde(flatten, default, skip_serializing_if = "serde_json::Map::is_empty")]
     pub extra: serde_json::Map<String, serde_json::Value>,
 }
@@ -111,6 +114,7 @@ impl Default for Settings {
             postit_focus: false,
             unlocked_themes: default_unlocked(),
             postit_pos: None,
+            postit_mini_pos: HashMap::new(),
             extra: serde_json::Map::new(),
         }
     }
@@ -138,6 +142,44 @@ mod tests {
         let saved = serde_json::to_value(settings).unwrap();
         assert_eq!(saved.get("postitFocus"), Some(&json!(false)));
         assert_eq!(saved.get("electronOnly"), Some(&json!({ "kept": true })));
+    }
+
+    #[test]
+    fn settings_postit_mini_pos_roundtrip_and_preserve_unknown_fields() {
+        let original = json!({
+            "postitMiniPos": {
+                "Built-in Retina Display": { "x": 1100, "y": 24 },
+                "-1920,0": { "x": -1920, "y": 0 }
+            },
+            "electronFutureSetting": { "enabled": true }
+        });
+        let settings: Settings = serde_json::from_value(original).unwrap();
+
+        assert_eq!(
+            settings
+                .postit_mini_pos
+                .get("Built-in Retina Display")
+                .map(|p| (p.x, p.y)),
+            Some((1100, 24))
+        );
+        assert_eq!(
+            settings.extra.get("electronFutureSetting"),
+            Some(&json!({ "enabled": true }))
+        );
+
+        let saved = serde_json::to_value(settings).unwrap();
+        let roundtripped: Settings = serde_json::from_value(saved.clone()).unwrap();
+        assert_eq!(
+            roundtripped
+                .postit_mini_pos
+                .get("-1920,0")
+                .map(|p| (p.x, p.y)),
+            Some((-1920, 0))
+        );
+        assert_eq!(
+            saved.get("electronFutureSetting"),
+            Some(&json!({ "enabled": true }))
+        );
     }
 }
 

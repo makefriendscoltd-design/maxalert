@@ -12,29 +12,29 @@ pub const SIREN_LEAD_MS: i64 = 3 * 60 * 1000; // 일정 3분 전부터 사이렌
 // ---------- 레벨 ----------
 // (min, title, icon, stage)
 pub const LEVELS: &[(i64, &str, &str, &str)] = &[
-    (0, "잠꾸러기 알", "🥚", "egg"),
-    (100, "꿈틀대는 알", "🥚", "egg-crack"),
-    (250, "부화 시작", "🐣", "hatch"),
-    (500, "껍질 깨는 중", "🐣", "hatch2"),
-    (900, "갓난 병아리", "🐤", "chick"),
-    (1400, "씩씩한 병아리", "🐥", "chick2"),
-    (2000, "풋내기 닭", "🐔", "hen"),
-    (2800, "당당한 닭", "🐔", "hen2"),
-    (3800, "우두머리 장닭", "🐓", "rooster"),
-    (5000, "전설의 갓닭", "🐓", "legend"),
+    (0, "잠꾸러기 알", "\u{1F95A}", "egg"),
+    (100, "꿈틀대는 알", "\u{1F95A}", "egg-crack"),
+    (250, "부화 시작", "\u{1F423}", "hatch"),
+    (500, "껍질 깨는 중", "\u{1F423}", "hatch2"),
+    (900, "갓난 병아리", "\u{1F424}", "chick"),
+    (1400, "씩씩한 병아리", "\u{1F425}", "chick2"),
+    (2000, "풋내기 닭", "\u{1F414}", "hen"),
+    (2800, "당당한 닭", "\u{1F414}", "hen2"),
+    (3800, "우두머리 장닭", "\u{1F413}", "rooster"),
+    (5000, "전설의 갓닭", "\u{1F413}", "legend"),
 ];
 
 // ---------- 뱃지 ----------
 // (id, name, icon, desc)
 pub const BADGES: &[(&str, &str, &str, &str)] = &[
-    ("first-done", "첫 걸음", "🌱", "첫 할 일 완료"),
-    ("early-bird", "얼리버드", "🌅", "오전 9시 전에 할 일 완료"),
-    ("perfect-day", "퍼펙트 데이", "💯", "하루의 할 일 전부 완료"),
-    ("no-snooze", "정면돌파", "🛡️", "미루기 없이 하루 클리어"),
-    ("streak-3", "작심삼일 극복", "🔥", "3일 연속 전체 완료"),
-    ("streak-7", "일주일의 기적", "🌈", "7일 연속 전체 완료"),
-    ("siren-slayer", "사이렌 슬레이어", "🚨", "사이렌이 울리는 중에 완료 5회"),
-    ("centurion", "백전노장", "⚔️", "누적 100개 완료"),
+    ("first-done", "첫 걸음", "\u{1F331}", "첫 할 일 완료"),
+    ("early-bird", "얼리버드", "\u{1F305}", "오전 9시 전에 할 일 완료"),
+    ("perfect-day", "퍼펙트 데이", "\u{1F4AF}", "하루의 할 일 전부 완료"),
+    ("no-snooze", "정면돌파", "\u{1F6E1}\u{FE0F}", "미루기 없이 하루 클리어"),
+    ("streak-3", "작심삼일 극복", "\u{1F525}", "3일 연속 전체 완료"),
+    ("streak-7", "일주일의 기적", "\u{1F308}", "7일 연속 전체 완료"),
+    ("siren-slayer", "사이렌 슬레이어", "\u{1F6A8}", "사이렌이 울리는 중에 완료 5회"),
+    ("centurion", "백전노장", "\u{2694}\u{FE0F}", "누적 100개 완료"),
 ];
 
 // 포인트 상점: 포스트잇 테마 가격
@@ -192,7 +192,7 @@ pub fn check_badges(data: &mut Data) {
             id: id.to_string(),
             at: now_ms(),
         });
-        add_points(data, 25, &format!("🏅 뱃지 획득: {}", name));
+        add_points(data, 25, &format!("뱃지 획득: {}", name));
     }
 }
 
@@ -314,7 +314,7 @@ pub fn maybe_reward(data: &mut Data) -> Option<RewardInfo> {
         1
     };
     data.streak.last_date = Some(today.clone());
-    add_points(data, 50, "🎉 오늘의 할 일 전체 완료 보너스");
+    add_points(data, 50, "오늘의 할 일 전체 완료 보너스");
     check_badges(data);
     let li = level_info(data.points.total);
     Some(RewardInfo {
@@ -352,7 +352,7 @@ pub fn build_daily_report(data: &Data) -> String {
         _ => format!("{} 업무 보고", today),
     };
     let mut l: Vec<String> = Vec::new();
-    l.push(format!("## 📋 {}", header));
+    l.push(format!("## {}", header));
     l.push(String::new());
     l.push(format!("완료 **{}** / 전체 {}", done.len(), todays.len()));
     l.push(String::new());

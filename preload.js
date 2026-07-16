@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('api', {
   toggleTodo: (id) => ipcRenderer.invoke('todos:toggle', id),
   deleteTodo: (id) => ipcRenderer.invoke('todos:delete', id),
   postponeTodo: (id, minutes) => ipcRenderer.invoke('todos:postpone', id, minutes),
+  postponeTodoToNextWeekday: (id) => ipcRenderer.invoke('todos:postponeNextWeekday', id),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (s) => ipcRenderer.invoke('settings:set', s),
   syncNotion: () => ipcRenderer.invoke('notion:sync'),

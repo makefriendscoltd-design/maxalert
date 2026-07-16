@@ -4,6 +4,8 @@ mod logic;
 mod notion;
 mod store;
 
+use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -41,6 +43,7 @@ struct AppState {
     schema_cache: Mutex<Option<(String, notion::Schema)>>,
     notion_busy: Mutex<bool>,
     siren: Mutex<SirenState>,
+    mini_postits: Mutex<HashMap<String, String>>,
 }
 
 // ---------- 헬퍼 ----------
@@ -220,6 +223,175 @@ fn create_postit_window(app: &AppHandle) {
     });
 }
 
+fn monitor_key(m: &tauri::Monitor) -> String {
+    if let Some(name) = m.name().filter(|name| !name.is_empty()) {
+        return name.clone();
+    }
+    let pos = m.position();
+    format!("{},{}", pos.x, pos.y)
+}
+
+fn postit_mini_label(key: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    key.hash(&mut hasher);
+    format!("postit-mini-{:016x}", hasher.finish())
+}
+
+fn sync_postit_mini_windows(app: &AppHandle) {
+    let monitors = app.available_monitors().unwrap_or_default();
+    let primary_pos = app.primary_monitor().ok().flatten().map(|m| *m.position());
+    let desired: HashMap<String, (String, tauri::Monitor)> = monitors
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, monitor)| {
+            let is_primary = primary_pos
+                .map(|pos| pos == *monitor.position())
+                .unwrap_or(i == 0);
+            if is_primary {
+                return None;
+            }
+            let key = monitor_key(&monitor);
+            Some((postit_mini_label(&key), (key, monitor)))
+        })
+        .collect();
+    let desired_labels: HashSet<String> = desired.keys().cloned().collect();
+    let state = app.state::<AppState>();
+
+    let stale_labels = {
+        let mut tracked = state.mini_postits.lock().unwrap();
+        let stale: Vec<String> = tracked
+            .keys()
+            .filter(|label| !desired_labels.contains(*label))
+            .cloned()
+            .collect();
+        for label in &stale {
+            tracked.remove(label);
+        }
+        stale
+    };
+    for label in stale_labels {
+        let app2 = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if let Some(win) = app2.get_webview_window(&label) {
+                let _ = win.destroy();
+            }
+        });
+    }
+
+    let saved_positions = {
+        state
+            .store
+            .lock()
+            .unwrap()
+            .data
+            .settings
+            .postit_mini_pos
+            .clone()
+    };
+
+    for (label, (key, monitor)) in desired {
+        let already_exists = {
+            let mut tracked = state.mini_postits.lock().unwrap();
+            if tracked.contains_key(&label) && app.get_webview_window(&label).is_some() {
+                true
+            } else {
+                tracked.insert(label.clone(), key.clone());
+                false
+            }
+        };
+        if already_exists {
+            continue;
+        }
+
+        let scale = monitor.scale_factor();
+        let monitor_pos = *monitor.position();
+        let monitor_size = *monitor.size();
+        let work_area = *monitor.work_area();
+        let width = (340.0 * scale).round() as u32;
+        let default_pos = PhysicalPosition::new(
+            work_area.position.x + work_area.size.width as i32 - width as i32,
+            work_area.position.y,
+        );
+        let pos = saved_positions
+            .get(&key)
+            .map(|saved| {
+                PhysicalPosition::new(
+                    (saved.x as f64 * scale).round() as i32,
+                    (saved.y as f64 * scale).round() as i32,
+                )
+            })
+            .filter(|saved| {
+                saved.x >= monitor_pos.x
+                    && saved.y >= monitor_pos.y
+                    && saved.x < monitor_pos.x + monitor_size.width as i32
+                    && saved.y < monitor_pos.y + monitor_size.height as i32
+            })
+            .unwrap_or(default_pos);
+        let size = PhysicalSize::new(width, work_area.size.height);
+        let app2 = app.clone();
+        let label2 = label.clone();
+        let _ = app.run_on_main_thread(move || {
+            let still_desired = app2
+                .state::<AppState>()
+                .mini_postits
+                .lock()
+                .unwrap()
+                .get(&label2)
+                == Some(&key);
+            if !still_desired {
+                return;
+            }
+            if let Ok(win) = WebviewWindowBuilder::new(
+                &app2,
+                label2.clone(),
+                WebviewUrl::App("postit.html?mini=1".into()),
+            )
+            .decorations(false)
+            .transparent(true)
+            .resizable(false)
+            .skip_taskbar(true)
+            .focused(false)
+            .shadow(false)
+            .always_on_top(true)
+            .accept_first_mouse(true)
+            .visible(false)
+            .build()
+            {
+                let _ = win.set_position(pos);
+                let _ = win.set_size(size);
+                let _ = win.set_ignore_cursor_events(true);
+                let should_show = app2
+                    .get_webview_window("postit")
+                    .map(|main| main.is_visible().unwrap_or(true))
+                    .unwrap_or(true);
+                if should_show {
+                    let _ = win.show();
+                }
+                let handle = app2.clone();
+                let event_label = label2.clone();
+                win.on_window_event(move |ev| {
+                    if let WindowEvent::Moved(pos) = ev {
+                        let scale = handle
+                            .get_webview_window(&event_label)
+                            .and_then(|w| w.scale_factor().ok())
+                            .unwrap_or(1.0);
+                        let state = handle.state::<AppState>();
+                        let mut store = state.store.lock().unwrap();
+                        store.data.settings.postit_mini_pos.insert(
+                            key.clone(),
+                            PostitPos {
+                                x: (pos.x as f64 / scale).round() as i32,
+                                y: (pos.y as f64 / scale).round() as i32,
+                            },
+                        );
+                        store.save();
+                    }
+                });
+            }
+        });
+    }
+}
+
 // macOS Tauri 는 ignore_cursor_events 상태에서 Electron 의 forward 처럼 mousemove 를
 // 웹뷰에 전달해주지 않는다. 그래서 클릭스루 해제 판정에 쓸 커서 좌표를 Rust 가
 // 전역 폴링해 postit 웹뷰로 밀어준다. 판정(.interactive 위인지)은 api-tauri.js
@@ -227,39 +399,49 @@ fn create_postit_window(app: &AppHandle) {
 fn spawn_postit_cursor_poll(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_millis(80));
-        let mut was_inside = false;
-        let mut last_sent: Option<(i32, i32)> = None;
+        let mut window_states: HashMap<String, (bool, Option<(i32, i32)>)> = HashMap::new();
         loop {
             interval.tick().await;
-            let Some(win) = app.get_webview_window("postit") else {
-                continue;
-            };
-            if !win.is_visible().unwrap_or(false) {
+            let windows: Vec<(String, tauri::WebviewWindow)> = app
+                .webview_windows()
+                .into_iter()
+                .filter(|(label, _)| label.starts_with("postit"))
+                .collect();
+            let labels: HashSet<&str> = windows.iter().map(|(label, _)| label.as_str()).collect();
+            window_states.retain(|label, _| labels.contains(label.as_str()));
+            if windows.is_empty() {
                 continue;
             }
             let Ok(cursor) = app.cursor_position() else {
                 continue;
             };
-            let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) else {
-                continue;
-            };
-            let inside = cursor.x >= pos.x as f64
-                && cursor.y >= pos.y as f64
-                && cursor.x < pos.x as f64 + size.width as f64
-                && cursor.y < pos.y as f64 + size.height as f64;
-            if inside {
-                let scale = win.scale_factor().unwrap_or(1.0);
-                let lx = ((cursor.x - pos.x as f64) / scale).round() as i32;
-                let ly = ((cursor.y - pos.y as f64) / scale).round() as i32;
-                if last_sent != Some((lx, ly)) {
-                    last_sent = Some((lx, ly));
-                    let _ = app.emit_to("postit", "postit:cursor", json!({ "x": lx, "y": ly }));
+            for (label, win) in windows {
+                if !win.is_visible().unwrap_or(false) {
+                    continue;
                 }
-                was_inside = true;
-            } else if was_inside {
-                was_inside = false;
-                last_sent = None;
-                let _ = app.emit_to("postit", "postit:cursor", json!({ "x": -1, "y": -1 }));
+                let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) else {
+                    continue;
+                };
+                let inside = cursor.x >= pos.x as f64
+                    && cursor.y >= pos.y as f64
+                    && cursor.x < pos.x as f64 + size.width as f64
+                    && cursor.y < pos.y as f64 + size.height as f64;
+                let (was_inside, last_sent) =
+                    window_states.entry(label.clone()).or_insert((false, None));
+                if inside {
+                    let scale = win.scale_factor().unwrap_or(1.0);
+                    let lx = ((cursor.x - pos.x as f64) / scale).round() as i32;
+                    let ly = ((cursor.y - pos.y as f64) / scale).round() as i32;
+                    if *last_sent != Some((lx, ly)) {
+                        *last_sent = Some((lx, ly));
+                        let _ = app.emit_to(&label, "postit:cursor", json!({ "x": lx, "y": ly }));
+                    }
+                    *was_inside = true;
+                } else if *was_inside {
+                    *was_inside = false;
+                    *last_sent = None;
+                    let _ = app.emit_to(&label, "postit:cursor", json!({ "x": -1, "y": -1 }));
+                }
             }
         }
     });
@@ -269,13 +451,20 @@ fn toggle_postit(app: &AppHandle) {
     match app.get_webview_window("postit") {
         Some(win) => {
             let visible = win.is_visible().unwrap_or(true);
-            if visible {
-                let _ = win.hide();
-            } else {
-                let _ = win.show();
+            for (label, postit) in app.webview_windows() {
+                if label.starts_with("postit") {
+                    if visible {
+                        let _ = postit.hide();
+                    } else {
+                        let _ = postit.show();
+                    }
+                }
             }
         }
-        None => create_postit_window(app),
+        None => {
+            create_postit_window(app);
+            sync_postit_mini_windows(app);
+        }
     }
 }
 
@@ -696,9 +885,12 @@ fn do_tick(app: &AppHandle, count: u64) {
         }
     }
     if count % 5 == 0 {
+        sync_postit_mini_windows(app);
         // 다른 프로그램이 topmost 를 뺏으면 위젯이 창 뒤로 가려짐 → 주기 재선언 (윈도우 v0.1.14 동작)
-        if let Some(win) = app.get_webview_window("postit") {
-            let _ = win.set_always_on_top(true);
+        for (label, win) in app.webview_windows() {
+            if label.starts_with("postit") {
+                let _ = win.set_always_on_top(true);
+            }
         }
         // 브리지가 파일을 바꿨으면 디스크 기준으로 다시 읽는다 (아침 동기화 유실 방지)
         let reloaded = {
@@ -1016,7 +1208,7 @@ fn todos_postpone(
         store.data.todos[idx].postpones = Some(store.data.todos[idx].postpones.unwrap_or(0) + 1);
         store.data.todos[idx].ack_due = None;
         let title = store.data.todos[idx].title.clone();
-        logic::add_points(&mut store.data, -3, &format!("⏳ 미루기: {}", title));
+        logic::add_points(&mut store.data, -3, &format!("미루기: {}", title));
         store.save();
         clone = store.data.todos[idx].clone();
     }
@@ -1151,9 +1343,9 @@ fn shop_buy_theme(state: State<AppState>, app: AppHandle, id: String) -> Value {
         }
         if !store.data.settings.unlocked_themes.iter().any(|t| t == &id) {
             if store.data.points.total < cost {
-                return json!({ "ok": false, "error": format!("포인트 부족 (⚡{} 필요)", cost) });
+                return json!({ "ok": false, "error": format!("포인트 부족 ({}P 필요)", cost) });
             }
-            logic::add_points(&mut store.data, -cost, &format!("🛍️ 테마 구입: {}", id));
+            logic::add_points(&mut store.data, -cost, &format!("테마 구입: {}", id));
             store.data.settings.unlocked_themes.push(id.clone());
         }
         store.data.settings.postit_theme = id.clone();
@@ -1187,19 +1379,15 @@ fn reward_close(app: AppHandle) -> bool {
 }
 
 #[tauri::command]
-fn postit_mouse(app: AppHandle, ignore: bool) -> bool {
-    if let Some(win) = app.get_webview_window("postit") {
-        let _ = win.set_ignore_cursor_events(ignore);
-    }
+fn postit_mouse(window: tauri::WebviewWindow, ignore: bool) -> bool {
+    let _ = window.set_ignore_cursor_events(ignore);
     true
 }
 
 #[tauri::command]
-fn postit_drag_start(app: AppHandle) -> bool {
+fn postit_drag_start(window: tauri::WebviewWindow) -> bool {
     // 지은 v0.2.1 확정 해법: 네이티브 start_dragging() 1회 호출 (커서 추적 타이머 금지)
-    if let Some(win) = app.get_webview_window("postit") {
-        let _ = win.start_dragging();
-    }
+    let _ = window.start_dragging();
     true
 }
 
@@ -1272,10 +1460,12 @@ pub fn run() {
                 schema_cache: Mutex::new(None),
                 notion_busy: Mutex::new(false),
                 siren: Mutex::new(SirenState::default()),
+                mini_postits: Mutex::new(HashMap::new()),
             });
             apply_autostart(&handle, open);
             create_tray(&handle)?;
             create_postit_window(&handle);
+            sync_postit_mini_windows(&handle);
             show_dashboard(&handle);
             spawn_tick(handle.clone());
             spawn_notion_poll(handle.clone());
