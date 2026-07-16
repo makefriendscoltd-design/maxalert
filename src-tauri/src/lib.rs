@@ -87,6 +87,17 @@ fn urlencode(s: &str) -> String {
     out
 }
 
+
+/// id 매칭 시 오늘 날짜 항목을 우선한다 — 브리지가 만든 노션 항목은 과거 완료 기록과
+/// 같은 id 를 가질 수 있어(페이지 ID 기반), 첫 매치가 화면 밖 과거 항목을 잡는 사고 방지.
+fn find_todo_index(data: &Data, id: &str) -> Option<usize> {
+    let today = today_str();
+    data.todos
+        .iter()
+        .position(|t| t.id == id && t.date == today)
+        .or_else(|| data.todos.iter().position(|t| t.id == id))
+}
+
 fn build_todos_payload(data: &Data) -> Value {
     let today = today_str();
     let mut todos: Vec<Todo> = data.todos.iter().filter(|t| t.date == today).cloned().collect();
@@ -561,6 +572,7 @@ async fn do_sync_inner(
                         bridge_synced_at: None,
                         deferred_from: None,
                         deferred_at: None,
+                        extra: Default::default(),
                     };
                     if let Some(d) = t.due_at {
                         if d < now {
@@ -682,6 +694,21 @@ fn do_tick(app: &AppHandle, count: u64) {
             siren_open(app, &t);
         }
     }
+    if count % 5 == 0 {
+        // 다른 프로그램이 topmost 를 뺏으면 위젯이 창 뒤로 가려짐 → 주기 재선언 (윈도우 v0.1.14 동작)
+        if let Some(win) = app.get_webview_window("postit") {
+            let _ = win.set_always_on_top(true);
+        }
+        // 브리지가 파일을 바꿨으면 디스크 기준으로 다시 읽는다 (아침 동기화 유실 방지)
+        let reloaded = {
+            let state = app.state::<AppState>();
+            let mut store = state.store.lock().unwrap();
+            store.reload_if_changed()
+        };
+        if reloaded {
+            push_todos(app);
+        }
+    }
     if count % 15 == 0 {
         push_todos(app);
     }
@@ -716,6 +743,7 @@ fn create_tray(app: &AppHandle) -> tauri::Result<()> {
         .text("open_dash", "투두리스트 열기")
         .text("toggle_postit", "포스트잇 보이기/숨기기")
         .text("sync_now", "지금 노션 동기화")
+        .text("restore_hidden", "숨긴 노션 일정 복원")
         .separator()
         .text("quit", "종료")
         .build()?;
@@ -732,6 +760,15 @@ fn create_tray(app: &AppHandle) -> tauri::Result<()> {
                 tauri::async_runtime::spawn(async move {
                     let _ = do_sync(&a).await;
                 });
+            }
+            "restore_hidden" => {
+                let state = app.state::<AppState>();
+                {
+                    let mut store = state.store.lock().unwrap();
+                    store.data.suppressed_notion_ids.clear();
+                    store.save();
+                }
+                push_todos(app);
             }
             "quit" => {
                 QUITTING.store(true, Ordering::SeqCst);
@@ -800,6 +837,7 @@ fn todos_add(state: State<AppState>, app: AppHandle, payload: AddPayload) -> Opt
         bridge_synced_at: None,
         deferred_from: None,
         deferred_at: None,
+        extra: Default::default(),
     };
     if let Some(time) = payload.time.filter(|s| !s.is_empty()) {
         if let Some(due) = parse_time_today(&time) {
@@ -824,7 +862,7 @@ fn todos_update(state: State<AppState>, app: AppHandle, id: String, patch: Value
     {
         let mut store = state.store.lock().unwrap();
         let now = now_ms();
-        let idx = match store.data.todos.iter().position(|t| t.id == id) {
+        let idx = match find_todo_index(&store.data, &id) {
             Some(i) => i,
             None => return None,
         };
@@ -871,7 +909,7 @@ fn todos_toggle(state: State<AppState>, app: AppHandle, id: String) -> Option<To
     {
         let mut store = state.store.lock().unwrap();
         let now = now_ms();
-        let idx = match store.data.todos.iter().position(|t| t.id == id) {
+        let idx = match find_todo_index(&store.data, &id) {
             Some(i) => i,
             None => return None,
         };
@@ -935,8 +973,16 @@ fn todos_toggle(state: State<AppState>, app: AppHandle, id: String) -> Option<To
 fn todos_delete(state: State<AppState>, app: AppHandle, id: String) -> bool {
     {
         let mut store = state.store.lock().unwrap();
-        if let Some(i) = store.data.todos.iter().position(|t| t.id == id) {
-            store.data.todos.remove(i);
+        if let Some(i) = find_todo_index(&store.data, &id) {
+            let t = store.data.todos.remove(i);
+            // 브리지(노션) 항목을 지우면 다시 안 받도록 억제 목록에 올린다
+            if t.bridge_source.as_deref().map(|s| s.starts_with("notion-")).unwrap_or(false) {
+                if let Some(pid) = t.notion_page_id {
+                    if !store.data.suppressed_notion_ids.contains(&pid) {
+                        store.data.suppressed_notion_ids.push(pid);
+                    }
+                }
+            }
         }
         store.save();
     }
@@ -955,7 +1001,7 @@ fn todos_postpone(
     {
         let mut store = state.store.lock().unwrap();
         let now = now_ms();
-        let idx = match store.data.todos.iter().position(|t| t.id == id) {
+        let idx = match find_todo_index(&store.data, &id) {
             Some(i) => i,
             None => return None,
         };
@@ -994,7 +1040,7 @@ fn todos_postpone_next_weekday(
     {
         let mut store = state.store.lock().unwrap();
         let now = now_ms();
-        let idx = match store.data.todos.iter().position(|t| t.id == id) {
+        let idx = match find_todo_index(&store.data, &id) {
             Some(i) => i,
             None => return None,
         };
@@ -1026,8 +1072,13 @@ fn todos_postpone_next_weekday(
 }
 
 #[tauri::command]
-fn settings_get(state: State<AppState>) -> Settings {
-    state.store.lock().unwrap().data.settings.clone()
+fn settings_get(state: State<AppState>, app: AppHandle) -> Value {
+    let settings = state.store.lock().unwrap().data.settings.clone();
+    let mut v = serde_json::to_value(&settings).unwrap_or(json!({}));
+    if let Some(obj) = v.as_object_mut() {
+        obj.insert("appVersion".into(), json!(app.package_info().version.to_string()));
+    }
+    v
 }
 
 #[tauri::command]

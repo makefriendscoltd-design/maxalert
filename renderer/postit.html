@@ -17,6 +17,7 @@
     display: flex; justify-content: flex-end; align-items: center; gap: 8px;
     opacity: 0.4; transition: opacity 0.2s;
   }
+  body.side-left .topbar { justify-content: flex-start; }
   .topbar:hover { opacity: 1; }
   .pill {
     display: flex; align-items: center; gap: 5px;
@@ -50,12 +51,22 @@
     padding: 16px 14px 10px;
     box-shadow: 0 4px 14px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.2);
     --peek: 0%;
-    transform: translateX(var(--peek)) rotate(-1.2deg);
+    transform: translateX(calc(var(--peek) * var(--dir, 1))) rotate(-1.2deg);
     transition: transform 0.45s cubic-bezier(0.25, 0.9, 0.3, 1), box-shadow 0.16s;
     min-height: 82px;
     color: #2b2417;
   }
-  .postit:nth-child(even) { transform: translateX(var(--peek)) rotate(1.1deg); }
+  .postit:nth-child(even) { transform: translateX(calc(var(--peek) * var(--dir, 1))) rotate(1.1deg); }
+  /* 위젯이 화면 왼쪽에 있으면 슬라이드 방향 반전 (왼쪽 가장자리에 자연스레 붙음) */
+  body { --dir: 1; }
+  body.side-left { --dir: -1; }
+  /* 왼쪽 도킹: 내용도 좌우 반전해서 보이는 쪽(오른쪽 가장자리)에 붙임 */
+  body.side-left .p-title { text-align: right; }
+  body.side-left .p-time { flex-direction: row-reverse; }
+  body.side-left .p-actions { flex-direction: row-reverse; justify-content: flex-start; }
+  body.side-left .bomb { right: auto; left: -5px; }
+  body.side-left .boom-icon { right: auto; left: -9px; }
+  body.side-left .fuse-bar { transform: scaleX(-1); }
   .postit:hover {
     --peek: 0%;
     transform: translateX(0) rotate(0) translateY(-3px) scale(1.02);
@@ -96,10 +107,10 @@
   .postit:hover .p-actions { display: flex; }
   .p-actions button {
     border: none; border-radius: 7px; padding: 5px 9px;
+    white-space: nowrap;
     font-size: 12px; cursor: pointer; font-weight: 700; font-family: inherit;
     background: rgba(20, 18, 10, 0.82); color: #fff;
     transition: background 0.1s;
-    white-space: nowrap;
   }
   .p-actions button:hover { background: #000; }
   .p-actions .b-done { background: #15803d; }
@@ -252,6 +263,7 @@
   </div>
 
 <script src="api-tauri.js"></script>
+
 <script>
   let state = { todos: [], profile: null }
   let currentLevelStage = ''
@@ -392,7 +404,7 @@
     const fallback = document.getElementById('levelCharacterFallback')
     btn.style.display = ''
     btn.title = `Lv.${level.n} ${level.title}`
-    fallback.textContent = level.icon || '🥚'
+    fallback.textContent = level.icon
     if (level.stage !== currentLevelStage) {
       currentLevelStage = level.stage || ''
       btn.classList.remove('fallback-mode')

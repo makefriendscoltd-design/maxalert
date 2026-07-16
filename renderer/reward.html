@@ -78,6 +78,7 @@
   </div>
 
 <script src="api-tauri.js"></script>
+
 <script>
   const PRAISES = [
     '완벽한 하루였어요. 정말 대단해요! 👏',
@@ -97,7 +98,7 @@
   document.getElementById('todayPt').textContent = `+${today} ⚡`
   document.getElementById('totalPt').textContent = `${total.toLocaleString()} ⚡`
   const lvIcon = document.getElementById('lvIcon')
-  const iconFallback = q.get('icon') || '🥚'
+  const iconFallback = q.get('icon') || '🐠'
   const stage = q.get('stage') || ''
   if (stage) {
     const img = document.createElement('img')

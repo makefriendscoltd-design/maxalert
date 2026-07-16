@@ -389,6 +389,7 @@ mod tests {
             bridge_synced_at: None,
             deferred_from: None,
             deferred_at: None,
+            extra: Default::default(),
         }
     }
 
