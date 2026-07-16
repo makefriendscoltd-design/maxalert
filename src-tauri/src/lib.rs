@@ -115,6 +115,7 @@ fn build_todos_payload(data: &Data) -> Value {
         "streak": streak_v,
         "profile": logic::profile_payload(data),
         "theme": theme,
+        "focus": data.settings.postit_focus,
     })
 }
 

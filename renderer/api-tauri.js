@@ -9,6 +9,7 @@
 
   var invoke = T.core.invoke;
   var listen = T.event.listen;
+  var postitCursorCallbacks = [];
 
   // 오디오 자동재생 폴백: WKWebView/WebView2 에서 제스처 없이 소리가 나도록
   // AudioContext 를 생성 즉시 resume 하고, Rust eval 이 호출할 수 있는 훅을 남긴다.
@@ -55,13 +56,21 @@
     dragStart: function () { return invoke('postit_drag_start'); },
     dragEnd: function () { return invoke('postit_drag_end'); },
     onTodos: function (cb) { listen('todos', function (e) { cb(e.payload); }); },
+    onPostitCursor: function (cb) {
+      if (typeof cb !== 'function') return function () {};
+      postitCursorCallbacks.push(cb);
+      return function () {
+        var i = postitCursorCallbacks.indexOf(cb);
+        if (i !== -1) postitCursorCallbacks.splice(i, 1);
+      };
+    },
     onSirenTodo: function (cb) { listen('siren:todo', function (e) { cb(e.payload); }); }
   };
 
   // ---- 포스트잇 클릭스루 제어 (Tauri 전용) ----
   // macOS 는 ignore_cursor_events 상태에서 mousemove 를 웹뷰에 전달하지 않아
   // (Electron forward:true 부재) postit.html 의 hover 해제 로직이 실행될 기회가 없다.
-  // Rust 가 postit:cursor 로 창-로컬 논리좌표를 밀어주면, 여기서 postit.html 352~356줄과
+  // Rust 가 postit:cursor 로 창-로컬 논리좌표를 밀어주면, 여기서 postit.html 과
   // 동일한 규칙(.interactive closest)으로 판정해 상태 변화 시에만 토글한다.
   if (location.pathname.indexOf('postit') !== -1) {
     var through = true;
@@ -69,6 +78,9 @@
       var p = e.payload || {};
       var el = (p.x >= 0 && p.y >= 0) ? document.elementFromPoint(p.x, p.y) : null;
       var interactive = !!(el && el.closest && el.closest('.interactive'));
+      postitCursorCallbacks.slice().forEach(function (cb) {
+        try { cb({ x: p.x, y: p.y, interactive: interactive }); } catch (err) {}
+      });
       if (interactive && through) {
         through = false;
         invoke('postit_mouse', { ignore: false });

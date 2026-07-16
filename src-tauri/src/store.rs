@@ -79,6 +79,8 @@ pub struct Settings {
     pub siren_volume: f64,
     #[serde(default = "default_theme")]
     pub postit_theme: String,
+    #[serde(default)]
+    pub postit_focus: bool,
     #[serde(default = "default_unlocked")]
     pub unlocked_themes: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -106,10 +108,36 @@ impl Default for Settings {
             open_at_login: false,
             siren_volume: default_volume(),
             postit_theme: default_theme(),
+            postit_focus: false,
             unlocked_themes: default_unlocked(),
             postit_pos: None,
             extra: serde_json::Map::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Settings;
+    use serde_json::json;
+
+    #[test]
+    fn settings_default_focus_and_preserve_unknown_fields() {
+        let settings: Settings = serde_json::from_value(json!({
+            "postitTheme": "neon",
+            "electronOnly": { "kept": true }
+        }))
+        .unwrap();
+
+        assert!(!settings.postit_focus);
+        assert_eq!(
+            settings.extra.get("electronOnly"),
+            Some(&json!({ "kept": true }))
+        );
+
+        let saved = serde_json::to_value(settings).unwrap();
+        assert_eq!(saved.get("postitFocus"), Some(&json!(false)));
+        assert_eq!(saved.get("electronOnly"), Some(&json!({ "kept": true })));
     }
 }
 

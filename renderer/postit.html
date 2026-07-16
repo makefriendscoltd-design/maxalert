@@ -30,6 +30,12 @@
   .pill.pts { color: #fbbf24; }
   button.pill { cursor: pointer; }
   button.pill:hover { border-color: rgba(255,255,255,0.35); }
+  button.focus-toggle.is-on {
+    color: #ede9fe;
+    background: rgba(91, 33, 182, 0.92);
+    border-color: rgba(196, 181, 253, 0.9);
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.35);
+  }
   .grip {
     cursor: move;
     letter-spacing: 1px;
@@ -102,6 +108,22 @@
   }
   .p-remain { font-size: 11px; font-weight: 700; }
   .p-title { font-size: 15.5px; font-weight: 700; margin-top: 4px; word-break: break-all; line-height: 1.35; }
+  .postit.focus-hero { min-height: 106px; padding: 20px 17px 13px; }
+  .postit.focus-hero .p-time { font-size: 12.5px; }
+  .postit.focus-hero .p-remain { font-size: 12px; }
+  .postit.focus-hero .p-title { font-size: 19px; line-height: 1.4; margin-top: 7px; }
+
+  .focus-more {
+    display: none; align-self: flex-end;
+    border: 1px solid rgba(255,255,255,0.24);
+    border-radius: 999px; padding: 6px 13px;
+    background: rgba(13, 15, 20, 0.88); color: #ddd6fe;
+    box-shadow: 0 5px 14px rgba(0,0,0,0.28);
+    font-family: inherit; font-size: 12px; font-weight: 800;
+    cursor: pointer;
+  }
+  .focus-more:hover { border-color: rgba(196,181,253,0.9); color: #fff; }
+  body.side-left .focus-more { align-self: flex-start; }
 
   .p-actions { display: none; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
   .postit:hover .p-actions { display: flex; }
@@ -250,10 +272,13 @@
   <div class="topbar interactive">
     <div class="pill grip" id="grip" title="잡고 드래그하면 위젯을 옮길 수 있어요">⠿</div>
     <div class="pill pts">⚡ <span id="ptLabel">0</span></div>
+    <button class="pill focus-toggle interactive" id="btnFocus" aria-pressed="false" title="최우선 할 일만 크게 보기">🎯 집중</button>
     <button class="pill" id="btnOpen">📝 투두리스트</button>
     <button class="pill quit" id="btnQuit" title="MaxAlert 강제종료">✕</button>
   </div>
-  <div id="stack"></div>
+  <div id="stack">
+    <button class="focus-more interactive" id="focusMore" type="button"></button>
+  </div>
   <div class="empty-hint" id="emptyHint">오늘의 할 일이 없어요.<br>📝 버튼으로 추가하세요!</div>
   <div class="level-character-row">
     <button class="level-character interactive" id="levelCharacter" style="display:none">
@@ -267,11 +292,46 @@
 <script>
   let state = { todos: [], profile: null }
   let currentLevelStage = ''
+  let focusMode = false
+  let focusTouched = false
+  let expanded = false
+  let collapseTimer = null
+  const collapseDelay = 850
+  const btnFocus = document.getElementById('btnFocus')
+  const focusMore = document.getElementById('focusMore')
 
-  window.api.onTodos(data => { state = data; render() })
-  window.api.listTodos().then(data => { state = data; render() })
+  function applyTodos(data) {
+    if (!data) return
+    state = data
+    if (!focusTouched && typeof data.focus === 'boolean') focusMode = data.focus
+    if (!focusMode) expanded = false
+    state.focus = focusMode
+    render()
+  }
+
+  window.api.onTodos(applyTodos)
+  window.api.listTodos().then(applyTodos)
+  window.api.getSettings().then(settings => {
+    if (!focusTouched && settings && typeof settings.postitFocus === 'boolean') {
+      focusMode = settings.postitFocus
+      if (!focusMode) expanded = false
+      render()
+    }
+  }).catch(() => {})
   setInterval(render, 1000)
 
+  btnFocus.addEventListener('click', () => {
+    focusTouched = true
+    focusMode = !focusMode
+    state.focus = focusMode
+    if (!focusMode) {
+      expanded = false
+      clearTimeout(collapseTimer)
+    }
+    render()
+    Promise.resolve(window.api.setSettings({ postitFocus: focusMode })).catch(() => {})
+  })
+  focusMore.addEventListener('click', () => setExpanded(true))
   document.getElementById('btnOpen').addEventListener('click', () => window.api.openDashboard())
   document.getElementById('btnQuit').addEventListener('click', () => window.api.quitApp())
   document.getElementById('levelCharacter').addEventListener('click', () => window.api.openDashboard())
@@ -358,8 +418,9 @@
     return div
   }
 
-  function updatePostit(el, t, now) {
-    const cls = `postit interactive c-${t.color} ${stageOf(t, now)} ${peekOf(t, now)}`
+  function updatePostit(el, t, now, hero) {
+    const peek = hero ? '' : peekOf(t, now)
+    const cls = `postit interactive c-${t.color} ${stageOf(t, now)} ${peek} ${hero ? 'focus-hero' : ''}`.trim()
     if (el.className !== cls) el.className = cls
     el.querySelector('.p-clock').textContent = t.dueAt ? '⏰ ' + fmtTime(t.dueAt) : '📌 종일'
     el.querySelector('.p-remain').textContent = fmtRemain(t, now)
@@ -381,20 +442,50 @@
     const stack = document.getElementById('stack')
     const visible = state.todos.filter(t => !t.done)
     document.getElementById('emptyHint').style.display = visible.length ? 'none' : 'block'
+    btnFocus.classList.toggle('is-on', focusMode)
+    btnFocus.setAttribute('aria-pressed', focusMode ? 'true' : 'false')
 
-    const order = visible.map(t => t.id).join(',')
+    const collapsed = focusMode && !expanded
+    const rendered = collapsed ? visible.slice(0, 1) : visible
+    const hiddenCount = collapsed ? Math.max(0, visible.length - 1) : 0
+    focusMore.textContent = '+' + hiddenCount
+    focusMore.style.display = hiddenCount ? 'block' : 'none'
+
+    const modeKey = focusMode ? (expanded ? 'focus-expanded' : 'focus-collapsed') : 'normal'
+    const order = modeKey + ':' + rendered.map(t => t.id).join(',')
     if (order !== lastOrder) {
       // 목록 구성이 바뀐 경우에만 재배치 (기존 요소는 재사용)
       const byId = {}
-      for (const el of stack.children) byId[el.dataset.id] = el
+      for (const el of stack.children) {
+        if (el.dataset.id) byId[el.dataset.id] = el
+      }
       stack.textContent = ''
-      for (const t of visible) stack.appendChild(byId[t.id] || makePostit(t))
+      for (const t of rendered) stack.appendChild(byId[t.id] || makePostit(t))
+      stack.appendChild(focusMore)
       lastOrder = order
     }
     for (const el of stack.children) {
-      const t = visible.find(x => x.id === el.dataset.id)
-      if (t) updatePostit(el, t, now)
+      if (!el.dataset.id) continue
+      const t = rendered.find(x => x.id === el.dataset.id)
+      if (t) updatePostit(el, t, now, collapsed && t === rendered[0])
     }
+  }
+
+  function setExpanded(next) {
+    next = !!next && focusMode
+    if (expanded === next) return
+    expanded = next
+    render()
+  }
+
+  function noteCursorActivity(onInteractive) {
+    if (!focusMode) return
+    clearTimeout(collapseTimer)
+    if (onInteractive) {
+      setExpanded(true)
+      return
+    }
+    if (expanded) collapseTimer = setTimeout(() => setExpanded(false), collapseDelay)
   }
 
   function updateLevelCharacter(level) {
@@ -422,12 +513,17 @@
   document.addEventListener('mousemove', e => {
     if (dragging) return // 드래그 중에는 클릭 통과 전환 금지
     const onInteractive = !!e.target.closest('.interactive')
+    noteCursorActivity(onInteractive)
     if (onInteractive && through) { through = false; window.api.setMouseThrough(false) }
     else if (!onInteractive && !through) { through = true; window.api.setMouseThrough(true) }
   })
   document.addEventListener('mouseleave', () => {
+    noteCursorActivity(false)
     if (!through) { through = true; window.api.setMouseThrough(true) }
   })
+  if (typeof window.api.onPostitCursor === 'function') {
+    window.api.onPostitCursor(cursor => noteCursorActivity(!!cursor.interactive))
+  }
 </script>
 </body>
 </html>
