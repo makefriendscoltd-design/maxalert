@@ -1,6 +1,7 @@
 // 포인트 / 레벨 / 뱃지 / 정렬 / 보고서 — main.js 순수 로직의 Rust 이식.
 // 창/IPC 와 무관한 순수 함수만 두고 단위 테스트 대상으로 삼는다.
 use std::cmp::Ordering;
+use std::collections::BTreeMap;
 
 use chrono::{Datelike, Duration as ChronoDuration, Local, NaiveDate, TimeZone, Timelike, Weekday};
 use serde_json::{json, Value};
@@ -329,37 +330,122 @@ pub fn maybe_reward(data: &mut Data) -> Option<RewardInfo> {
     })
 }
 
-// ---------- 일일 보고서 (main.js buildDailyReport 와 동일) ----------
+fn completed_title_from_reason(reason: &str) -> Option<&str> {
+    let title = reason
+        .strip_prefix("완료(노션):")
+        .or_else(|| reason.strip_prefix("완료:"))?
+        .trim_start();
+    if title.is_empty() {
+        return None;
+    }
+    if title.ends_with(')') {
+        if let Some(index) = title.find("(정시") {
+            let without_suffix = title[..index].trim_end();
+            if !without_suffix.is_empty() {
+                return Some(without_suffix);
+            }
+        }
+    }
+    Some(title)
+}
+
+fn cancelled_title_from_reason(reason: &str) -> Option<&str> {
+    let title = reason
+        .strip_prefix("완료 취소(노션):")
+        .or_else(|| reason.strip_prefix("완료 취소:"))?
+        .trim_start();
+    if title.is_empty() {
+        None
+    } else {
+        Some(title)
+    }
+}
+
+fn add_report_entry(
+    entries: &mut BTreeMap<String, Option<i64>>,
+    title: &str,
+    completed_at: Option<i64>,
+) {
+    let completed_at = completed_at.filter(|at| *at > 0);
+    entries
+        .entry(title.to_string())
+        .and_modify(|current| {
+            if current.is_none() && completed_at.is_some() {
+                *current = completed_at;
+            }
+        })
+        .or_insert(completed_at);
+}
+
+// ---------- 일일 보고서 (완료 투두, 원장 이벤트, 동기화 스냅샷의 합집합) ----------
 pub fn build_daily_report(data: &Data) -> String {
     let today = today_str();
     let mut todays: Vec<Todo> = data.todos.iter().filter(|t| t.date == today).cloned().collect();
     todays.sort_by(sort_todos);
-    let done: Vec<&Todo> = todays.iter().filter(|t| t.done).collect();
+
+    let mut done: BTreeMap<String, Option<i64>> = BTreeMap::new();
+    for todo in todays.iter().filter(|t| t.done) {
+        add_report_entry(&mut done, &todo.title, todo.done_at);
+    }
+
+    let mut events: Vec<&LedgerEntry> = data
+        .points
+        .ledger
+        .iter()
+        .filter(|entry| date_str_of(entry.at) == today)
+        .collect();
+    events.sort_by_key(|entry| entry.at);
+    let mut ledger_done: BTreeMap<String, Option<i64>> = BTreeMap::new();
+    for entry in events {
+        if let Some(title) = cancelled_title_from_reason(&entry.reason) {
+            ledger_done.remove(title);
+        } else if let Some(title) = completed_title_from_reason(&entry.reason) {
+            ledger_done.entry(title.to_string()).or_insert(Some(entry.at));
+        }
+    }
+    for (title, completed_at) in ledger_done {
+        add_report_entry(&mut done, &title, completed_at);
+    }
+
+    if let Some(today_log) = data.done_log.get(&today) {
+        for (title, completed_at) in today_log {
+            done.entry(title.clone())
+                .or_insert_with(|| (*completed_at > 0).then_some(*completed_at));
+        }
+    }
+
     let fmt = |ms: i64| -> String {
         let d = local_of(ms);
         format!("{:02}:{:02}", d.hour(), d.minute())
     };
-    let line = |t: &Todo| -> String {
-        let time = match t.due_at {
-            Some(ms) => format!("`{}` ", fmt(ms)),
+    let line = |(title, completed_at): &(String, Option<i64>)| -> String {
+        let time = match completed_at {
+            Some(ms) => format!("`{}` ", fmt(*ms)),
             None => String::new(),
         };
-        format!("- {}{}", time, t.title)
+        format!("- {}{}", time, title)
     };
     let name = data.settings.notion_assignee.as_ref().map(|a| a.name.clone());
     let header = match name {
         Some(n) if !n.is_empty() => format!("{} | {} 업무 보고", n, today),
         _ => format!("{} 업무 보고", today),
     };
+    let mut entries: Vec<(String, Option<i64>)> = done.into_iter().collect();
+    entries.sort_by(|a, b| {
+        a.1.unwrap_or(0)
+            .cmp(&b.1.unwrap_or(0))
+            .then_with(|| a.0.cmp(&b.0))
+    });
+    let total = todays.len().max(entries.len());
     let mut l: Vec<String> = Vec::new();
     l.push(format!("## {}", header));
     l.push(String::new());
-    l.push(format!("완료 **{}** / 전체 {}", done.len(), todays.len()));
+    l.push(format!("완료 **{}** / 전체 {}", entries.len(), total));
     l.push(String::new());
-    if done.is_empty() {
+    if entries.is_empty() {
         l.push("- (완료한 항목 없음)".to_string());
     } else {
-        l.push(done.iter().map(|t| line(t)).collect::<Vec<_>>().join("\n"));
+        l.push(entries.iter().map(line).collect::<Vec<_>>().join("\n"));
     }
     l.join("\n")
 }
@@ -480,5 +566,63 @@ mod tests {
         // 마감 10분 뒤(리드 초과) → 제외
         let far = todo("f", false, Some(now + 10 * 60 * 1000), now);
         assert!(!siren_eligible(&far, now));
+    }
+
+    #[test]
+    fn daily_report_unions_todos_ledger_and_done_log() {
+        let at = |hour: u32, minute: u32| {
+            let date = Local::now().date_naive();
+            let naive = date.and_hms_opt(hour, minute, 0).unwrap();
+            Local.from_local_datetime(&naive).single().unwrap().timestamp_millis()
+        };
+        let mut data = Data::default();
+
+        let mut first = todo("todo-first", true, None, at(8, 0));
+        first.title = "중복 완료".to_string();
+        first.done_at = Some(at(9, 5));
+        let mut duplicate = todo("todo-duplicate", true, None, at(8, 1));
+        duplicate.title = "중복 완료".to_string();
+        duplicate.done_at = Some(at(9, 10));
+        let mut incomplete = todo("todo-open", false, None, at(8, 2));
+        incomplete.title = "미완료".to_string();
+        data.todos = vec![first, duplicate, incomplete];
+
+        data.points.ledger = vec![
+            LedgerEntry {
+                at: at(10, 0),
+                delta: -10,
+                reason: "완료 취소(노션): 취소 대상".to_string(),
+            },
+            LedgerEntry {
+                at: at(9, 40),
+                delta: 10,
+                reason: "완료(노션): 노션 원장".to_string(),
+            },
+            LedgerEntry {
+                at: at(9, 50),
+                delta: 10,
+                reason: "완료: 취소 대상".to_string(),
+            },
+            LedgerEntry {
+                at: at(9, 30),
+                delta: 10,
+                reason: "완료: 원장 단독 (정시 +10)".to_string(),
+            },
+        ];
+        let today_log = data.done_log.entry(today_str()).or_default();
+        today_log.insert("스냅샷 단독".to_string(), at(11, 45));
+        today_log.insert("중복 완료".to_string(), at(12, 0));
+
+        let report = build_daily_report(&data);
+
+        assert!(report.contains("완료 **4** / 전체 4"));
+        assert_eq!(report.matches("중복 완료").count(), 1);
+        assert!(report.contains("- `09:05` 중복 완료"));
+        assert!(report.contains("- `09:30` 원장 단독"));
+        assert!(report.contains("- `09:40` 노션 원장"));
+        assert!(report.contains("- `11:45` 스냅샷 단독"));
+        assert!(!report.contains("취소 대상"));
+        assert!(!report.contains("(정시"));
+        assert!(!report.contains("미완료"));
     }
 }

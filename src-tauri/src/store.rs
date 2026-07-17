@@ -1,7 +1,7 @@
 // JSON 저장소 — lib/store.js 와 동일 스키마.
 // Electron(maxalert-data.json)이 쓴 파일을 Tauri 가 읽고, 그 역도 성립해야 한다.
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::PathBuf;
 
@@ -122,7 +122,7 @@ impl Default for Settings {
 
 #[cfg(test)]
 mod tests {
-    use super::Settings;
+    use super::{Data, Settings};
     use serde_json::json;
 
     #[test]
@@ -181,6 +181,43 @@ mod tests {
             Some(&json!({ "enabled": true }))
         );
     }
+
+    #[test]
+    fn data_promotes_done_log_without_flatten_collision() {
+        let original = json!({
+            "doneLog": {
+                "2026-07-17": {
+                    "보존된 완료": 1_721_190_300_000_i64
+                }
+            },
+            "electronFutureField": { "kept": true }
+        });
+        let data: Data = serde_json::from_value(original).unwrap();
+
+        assert_eq!(
+            data.done_log
+                .get("2026-07-17")
+                .and_then(|day| day.get("보존된 완료")),
+            Some(&1_721_190_300_000_i64)
+        );
+        assert!(!data.extra.contains_key("doneLog"));
+        assert_eq!(
+            data.extra.get("electronFutureField"),
+            Some(&json!({ "kept": true }))
+        );
+
+        let serialized = serde_json::to_string(&data).unwrap();
+        assert_eq!(serialized.matches("\"doneLog\"").count(), 1);
+        let saved = serde_json::to_value(data).unwrap();
+        assert_eq!(
+            saved.pointer("/doneLog/2026-07-17/보존된 완료"),
+            Some(&json!(1_721_190_300_000_i64))
+        );
+        assert_eq!(
+            saved.get("electronFutureField"),
+            Some(&json!({ "kept": true }))
+        );
+    }
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -228,6 +265,8 @@ pub struct BadgeOwned {
 pub struct Data {
     #[serde(default)]
     pub todos: Vec<Todo>,
+    #[serde(rename = "doneLog", default)]
+    pub done_log: BTreeMap<String, BTreeMap<String, i64>>,
     #[serde(default)]
     pub settings: Settings,
     #[serde(default)]
@@ -251,6 +290,7 @@ impl Default for Data {
     fn default() -> Self {
         Data {
             todos: Vec::new(),
+            done_log: BTreeMap::new(),
             settings: Settings::default(),
             streak: Streak::default(),
             last_reward_date: None,

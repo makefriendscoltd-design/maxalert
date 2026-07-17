@@ -337,6 +337,32 @@ function mergeTodos(data, incoming, today) {
   return { added: added.length, updated, removed };
 }
 
+function updateDoneLog(data, incoming, today, confirmedAt) {
+  if (!data.doneLog || typeof data.doneLog !== "object" || Array.isArray(data.doneLog)) {
+    data.doneLog = {};
+  }
+  if (!data.doneLog[today] || typeof data.doneLog[today] !== "object" || Array.isArray(data.doneLog[today])) {
+    data.doneLog[today] = {};
+  }
+  const todayLog = data.doneLog[today];
+  for (const todo of incoming) {
+    if (!todo || typeof todo.title !== "string" || !todo.title) continue;
+    if (todo.done) {
+      if (!Object.prototype.hasOwnProperty.call(todayLog, todo.title)) {
+        todayLog[todo.title] = confirmedAt;
+      }
+    } else {
+      delete todayLog[todo.title];
+    }
+  }
+
+  const todayStart = new Date(`${today}T00:00:00+09:00`).getTime();
+  const cutoff = new Date(todayStart - 14 * 86400000 + KST_OFFSET_MS).toISOString().slice(0, 10);
+  for (const date of Object.keys(data.doneLog)) {
+    if (date < cutoff) delete data.doneLog[date];
+  }
+}
+
 
 // ---- 노션 역반영 (앱 완료 → 노션) ----
 // 태스크: "완료" 체크박스 체크. 일정: 단일(하루)이면 "done" 체크,
@@ -530,6 +556,7 @@ async function main() {
     incoming.length = 0;
     incoming.push(...kept);
     const beforeCount = Array.isArray(data.todos) ? data.todos.length : 0;
+    updateDoneLog(data, incoming, today, Date.now());
     const changes = mergeTodos(data, incoming, today);
     const afterCount = Array.isArray(data.todos) ? data.todos.length : 0;
     const summary = {

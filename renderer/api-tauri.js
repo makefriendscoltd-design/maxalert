@@ -67,6 +67,104 @@
     onSirenTodo: function (cb) { listen('siren:todo', function (e) { cb(e.payload); }); }
   };
 
+  // ---- 업데이트 안내 (Tauri 대시보드 전용) ----
+  var updateDismissKey = 'maxUpdateDismissed';
+  var updateDownloadUrl = 'https://lounge.aimax.ai.kr';
+
+  var findDashboardInsertPoint = function () {
+    if (location.pathname.indexOf('dashboard') === -1 || !document.body) return null;
+    var wrap = document.querySelector('body > .wrap');
+    if (wrap) return { parent: wrap, before: wrap.firstChild };
+    for (var i = 0; i < document.body.children.length; i += 1) {
+      var child = document.body.children[i];
+      if (child.tagName !== 'SCRIPT' && child.tagName !== 'STYLE' && child.tagName !== 'SVG') {
+        return { parent: document.body, before: child };
+      }
+    }
+    return null;
+  };
+
+  var showUpdateBanner = function (version) {
+    version = String(version || '').trim();
+    if (!version || location.pathname.indexOf('dashboard') === -1) return;
+    try {
+      if (window.localStorage.getItem(updateDismissKey) === version) return;
+    } catch (e) {}
+
+    var insertPoint = findDashboardInsertPoint();
+    if (!insertPoint) return;
+    var oldBanner = document.getElementById('max-update-banner');
+    if (oldBanner) {
+      if (oldBanner.getAttribute('data-version') === version) return;
+      oldBanner.parentNode.removeChild(oldBanner);
+    }
+
+    if (!document.getElementById('max-update-banner-style')) {
+      var style = document.createElement('style');
+      style.id = 'max-update-banner-style';
+      style.textContent =
+        '#max-update-banner{display:flex;align-items:center;gap:12px;width:100%;margin:0 0 14px;padding:11px 13px;border:1px solid rgba(96,165,250,.38);border-radius:12px;background:linear-gradient(135deg,rgba(20,28,46,.94),rgba(30,34,46,.88));color:#e9ecf4;box-shadow:0 10px 28px rgba(0,0,0,.22);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);font:600 13px/1.45 system-ui,sans-serif}' +
+        '#max-update-banner .max-update-message{flex:1;min-width:0}' +
+        '#max-update-banner button{border:0;font:inherit;cursor:pointer}' +
+        '#max-update-banner .max-update-download{padding:0;background:transparent;color:#60a5fa;font-weight:800;text-decoration:underline;text-underline-offset:3px}' +
+        '#max-update-banner .max-update-close{width:26px;height:26px;flex:0 0 26px;border:1px solid rgba(140,160,255,.18);border-radius:7px;background:rgba(13,15,20,.48);color:#8a93a8;font-size:12px;line-height:1}' +
+        '#max-update-banner .max-update-download:hover{color:#93c5fd}' +
+        '#max-update-banner .max-update-close:hover{color:#e9ecf4;border-color:rgba(96,165,250,.45)}';
+      document.head.appendChild(style);
+    }
+
+    var banner = document.createElement('div');
+    banner.id = 'max-update-banner';
+    banner.setAttribute('data-version', version);
+    banner.setAttribute('role', 'status');
+    banner.setAttribute('aria-live', 'polite');
+
+    var message = document.createElement('span');
+    message.className = 'max-update-message';
+    message.appendChild(document.createTextNode('새 버전 v' + version + ' 이 나왔어요 — '));
+    var download = document.createElement('button');
+    download.type = 'button';
+    download.className = 'max-update-download';
+    download.textContent = '다운로드';
+    download.addEventListener('click', function () {
+      try {
+        var request = invoke('open_external', { url: updateDownloadUrl });
+        if (request && typeof request.catch === 'function') request.catch(function () {});
+      } catch (e) {}
+    });
+    message.appendChild(download);
+
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'max-update-close';
+    close.textContent = 'X';
+    close.setAttribute('aria-label', '업데이트 알림 닫기');
+    close.addEventListener('click', function () {
+      try { window.localStorage.setItem(updateDismissKey, version); } catch (e) {}
+      if (banner.parentNode) banner.parentNode.removeChild(banner);
+    });
+
+    banner.appendChild(message);
+    banner.appendChild(close);
+    insertPoint.parent.insertBefore(banner, insertPoint.before);
+  };
+
+  var onUpdateAvailable = function (e) {
+    var payload = e && e.payload ? e.payload : {};
+    var render = function () { showUpdateBanner(payload.version); };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', render, { once: true });
+    } else {
+      render();
+    }
+  };
+  try {
+    var updateListener = listen('update:available', onUpdateAvailable);
+    if (updateListener && typeof updateListener.catch === 'function') {
+      updateListener.catch(function () {});
+    }
+  } catch (e) {}
+
   // ---- 포스트잇 클릭스루 제어 (Tauri 전용) ----
   // macOS 는 ignore_cursor_events 상태에서 mousemove 를 웹뷰에 전달하지 않아
   // (Electron forward:true 부재) postit.html 의 hover 해제 로직이 실행될 기회가 없다.

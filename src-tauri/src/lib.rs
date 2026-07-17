@@ -27,6 +27,8 @@ use store::{Data, PostitPos, Settings, Store, Todo};
 
 const COLORS: [&str; 6] = ["yellow", "pink", "blue", "green", "purple", "orange"];
 const AUTOPLAY_RESUME_JS: &str = "window.__maxalertResumeAudio && window.__maxalertResumeAudio();";
+const UPDATE_CHECK_URL: &str = "https://api.aimax.ai.kr/api/workers";
+const UPDATE_DOWNLOAD_URL: &str = "https://lounge.aimax.ai.kr";
 
 static QUITTING: AtomicBool = AtomicBool::new(false);
 
@@ -88,6 +90,69 @@ fn urlencode(s: &str) -> String {
         }
     }
     out
+}
+
+fn parse_numeric_version(version: &str) -> Option<(u64, u64, u64)> {
+    let mut parts = version.split('.');
+    let major = parts.next()?.parse().ok()?;
+    let minor = parts.next()?.parse().ok()?;
+    let patch = parts.next()?.parse().ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some((major, minor, patch))
+}
+
+fn version_is_newer(candidate: &str, current: &str) -> Option<bool> {
+    let candidate = parse_numeric_version(candidate)?;
+    let current = parse_numeric_version(current)?;
+    Some(candidate > current)
+}
+
+async fn fetch_latest_version(client: &reqwest::Client) -> Option<String> {
+    let response = client
+        .get(UPDATE_CHECK_URL)
+        .send()
+        .await
+        .ok()?
+        .error_for_status()
+        .ok()?;
+    let payload: Value = response.json().await.ok()?;
+    let workers = payload.get("workers")?.as_array()?;
+    for worker in workers {
+        if worker.get("code").and_then(Value::as_str) == Some("max_alert") {
+            return worker
+                .get("version")
+                .and_then(Value::as_str)
+                .map(str::to_string);
+        }
+    }
+    None
+}
+
+fn spawn_update_poll(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let client = match reqwest::Client::builder()
+            .timeout(Duration::from_secs(15))
+            .build()
+        {
+            Ok(client) => client,
+            Err(_) => return,
+        };
+        let current = app.package_info().version.to_string();
+        let mut emitted = HashSet::new();
+        tokio::time::sleep(Duration::from_secs(5 * 60)).await;
+        loop {
+            if let Some(version) = fetch_latest_version(&client).await {
+                if version_is_newer(&version, &current) == Some(true)
+                    && emitted.insert(version.clone())
+                {
+                    let _ = app.emit("update:available", json!({ "version": version }));
+                }
+            }
+            tokio::time::sleep(Duration::from_secs(6 * 60 * 60)).await;
+        }
+    });
 }
 
 
@@ -1397,6 +1462,19 @@ fn postit_drag_end() -> bool {
 }
 
 #[tauri::command]
+fn open_external(url: String) -> bool {
+    // prefix 일치만으로는 lounge.aimax.ai.kr.evil.com 류가 통과한다 — 호스트 경계까지 확인.
+    let allowed = match url.strip_prefix(UPDATE_DOWNLOAD_URL) {
+        Some(rest) => rest.is_empty() || rest.starts_with('/') || rest.starts_with('?') || rest.starts_with('#'),
+        None => false,
+    };
+    if !allowed {
+        return false;
+    }
+    std::process::Command::new("open").arg(url).spawn().is_ok()
+}
+
+#[tauri::command]
 fn open_siren(app: AppHandle, todo: Value) -> bool {
     if let Ok(t) = serde_json::from_value::<Todo>(todo) {
         siren_open(&app, &t);
@@ -1445,6 +1523,7 @@ pub fn run() {
             postit_mouse,
             postit_drag_start,
             postit_drag_end,
+            open_external,
             open_siren,
             close_siren
         ])
@@ -1476,6 +1555,7 @@ pub fn run() {
             show_dashboard(&handle);
             spawn_tick(handle.clone());
             spawn_notion_poll(handle.clone());
+            spawn_update_poll(handle.clone());
             spawn_postit_cursor_poll(handle.clone());
             Ok(())
         })
@@ -1488,4 +1568,35 @@ pub fn run() {
                 }
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::version_is_newer;
+
+    #[test]
+    fn version_comparison_detects_upgrade() {
+        assert_eq!(version_is_newer("0.2.2", "0.2.1"), Some(true));
+        assert_eq!(version_is_newer("1.0.0", "0.99.99"), Some(true));
+    }
+
+    #[test]
+    fn version_comparison_rejects_equal_version() {
+        assert_eq!(version_is_newer("0.2.1", "0.2.1"), Some(false));
+    }
+
+    #[test]
+    fn version_comparison_rejects_downgrade() {
+        assert_eq!(version_is_newer("0.2.0", "0.2.1"), Some(false));
+        assert_eq!(version_is_newer("0.9.9", "1.0.0"), Some(false));
+    }
+
+    #[test]
+    fn version_comparison_ignores_parse_failures() {
+        assert_eq!(version_is_newer("0.2", "0.2.1"), None);
+        assert_eq!(version_is_newer("v0.2.2", "0.2.1"), None);
+        assert_eq!(version_is_newer("0.2.2.1", "0.2.1"), None);
+        assert_eq!(version_is_newer("0.two.2", "0.2.1"), None);
+        assert_eq!(version_is_newer("0.2.2", "current"), None);
+    }
 }
