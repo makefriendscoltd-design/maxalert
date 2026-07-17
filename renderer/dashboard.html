@@ -465,6 +465,7 @@
   let state = { todos: [], streak: null, profile: null }
   let selectedColor = 'yellow'
   let editingId = null
+  let lastRenderSig = ''
   const stageIconState = {}
   const BADGE_ICONS = {
     'first-done': 'check',
@@ -630,8 +631,25 @@
     el.appendChild(img)
   }
 
+  function updateCountdowns() {
+    // 매초 전체 재생성은 카드 트랜지션 재생·hover 리셋으로 깜빡임을 만든다 —
+    // 상태가 그대로면 남은시간 텍스트만 제자리 갱신한다.
+    const byId = new Map(state.todos.map(t => [t.id, t]))
+    for (const div of document.querySelectorAll('#list .item')) {
+      const t = byId.get(div.dataset.id)
+      if (!t) continue
+      const meta = div.querySelector('.i-meta')
+      if (!meta) continue
+      const metaHtml = metaOf(t) + (t.notionPageId ? '<span class="notion-tag">notion</span>' : '')
+      if (meta.dataset.src !== metaHtml) { meta.dataset.src = metaHtml; meta.innerHTML = metaHtml }
+    }
+  }
+
   function render() {
     if (editingId) return
+    const sig = JSON.stringify(state)
+    if (sig === lastRenderSig) { updateCountdowns(); return }
+    lastRenderSig = sig
     renderProfile()
     const list = document.getElementById('list')
     list.innerHTML = ''
@@ -642,17 +660,20 @@
     for (const t of state.todos) {
       const div = document.createElement('div')
       div.className = `item b-${t.color} ${t.done ? 'done-item' : ''}`
+      div.dataset.id = t.id
+      const metaHtml = metaOf(t) + (t.notionPageId ? '<span class="notion-tag">notion</span>' : '')
       div.innerHTML = `
         <div class="chk ${t.done ? 'on' : ''}">${t.done ? iconMarkup('check') : ''}</div>
         <div class="i-body">
           <div class="i-title"></div>
-          <div class="i-meta">${metaOf(t)}${t.notionPageId ? '<span class="notion-tag">notion</span>' : ''}</div>
+          <div class="i-meta">${metaHtml}</div>
         </div>
         <div class="i-actions">
           ${t.done ? '' : `<button data-act="pp">+10분</button><button data-act="nextday" title="주말은 건너뛰고 다음 평일로 이동">다음 평일</button><button data-act="edit" title="수정" aria-label="수정">${iconMarkup('pencil')}</button>`}
           <button data-act="del" title="삭제" aria-label="삭제">${iconMarkup('trash')}</button>
         </div>`
       div.querySelector('.i-title').textContent = t.title
+      div.querySelector('.i-meta').dataset.src = metaHtml
       div.querySelector('.chk').addEventListener('click', async () => { await window.api.toggleTodo(t.id); refresh() })
       div.querySelector('[data-act=del]').addEventListener('click', async () => { await window.api.deleteTodo(t.id); refresh() })
       const nextday = div.querySelector('[data-act=nextday]')
@@ -667,6 +688,8 @@
 
   function startEdit(div, t) {
     editingId = t.id
+    lastRenderSig = '' // 편집 폼이 DOM 을 바꿨으니 편집 종료 후 첫 render 는 반드시 재생성
+
     const body = div.querySelector('.i-body')
     div.querySelector('.i-actions').style.display = 'none'
     const timeVal = t.dueAt ? fmtTime(t.dueAt) : ''

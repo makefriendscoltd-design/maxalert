@@ -550,13 +550,18 @@
     render()
   }
 
-  function noteCursorActivity(onInteractive) {
+  function noteCursorActivity(onInteractive, onExpandTrigger, inside) {
     if (!focusMode) return
     clearTimeout(collapseTimer)
-    if (onInteractive) {
+    // 확장은 +N 배지 위에서만 발동 — hero 에 커서를 올려도 크기를 유지해
+    // 완료 등 액션을 그 자리에서 할 수 있게 한다 (조준 중 타깃 축소 금지).
+    if (onExpandTrigger) {
       setExpanded(true)
       return
     }
+    // 펼친 상태는 커서가 위젯 안에 있는 한 유지 — 배지가 사라진 자리가 빈틈이어도
+    // 접힘/펼침 진동이 생기지 않는다. 창을 벗어나면 850ms 후 접는다.
+    if (expanded && (onInteractive || inside)) return
     if (expanded) collapseTimer = setTimeout(() => setExpanded(false), collapseDelay)
   }
 
@@ -583,7 +588,7 @@
   document.addEventListener('mousemove', e => {
     if (dragging) return // 드래그 중에는 클릭 통과 전환 금지
     const onInteractive = !!e.target.closest('.interactive')
-    noteCursorActivity(onInteractive)
+    noteCursorActivity(onInteractive, !!e.target.closest('.focus-more'), true)
     if (onInteractive && through) { through = false; window.api.setMouseThrough(false) }
     else if (!onInteractive && !through) { through = true; window.api.setMouseThrough(true) }
   })
@@ -592,7 +597,7 @@
     if (!through) { through = true; window.api.setMouseThrough(true) }
   })
   if (typeof window.api.onPostitCursor === 'function') {
-    window.api.onPostitCursor(cursor => noteCursorActivity(!!cursor.interactive))
+    window.api.onPostitCursor(cursor => noteCursorActivity(!!cursor.interactive, !!cursor.expandTrigger, cursor.x >= 0 && cursor.y >= 0))
   }
 </script>
 </body>

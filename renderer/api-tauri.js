@@ -176,8 +176,10 @@
       var p = e.payload || {};
       var el = (p.x >= 0 && p.y >= 0) ? document.elementFromPoint(p.x, p.y) : null;
       var interactive = !!(el && el.closest && el.closest('.interactive'));
+      // 포커스 확장 트리거는 +N 배지 위에서만 — hero 조준 중 축소 방지 (postit.html 과 동일 규칙)
+      var expandTrigger = !!(el && el.closest && el.closest('.focus-more'));
       postitCursorCallbacks.slice().forEach(function (cb) {
-        try { cb({ x: p.x, y: p.y, interactive: interactive }); } catch (err) {}
+        try { cb({ x: p.x, y: p.y, interactive: interactive, expandTrigger: expandTrigger }); } catch (err) {}
       });
       if (interactive && through) {
         through = false;
