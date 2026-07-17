@@ -227,6 +227,14 @@
     const videoIn = document.getElementById('chickVideo')   // 정면 등장 + 노려봄
     const videoMarch = document.getElementById('chickMarch') // 옆모습 제자리 행진
 
+    // WKWebView(맥 Tauri)는 VP9 알파를 렌더링하지 못해 배경째 재생됨
+    // → WebKit에서만 HEVC-with-alpha(hvc1 .mov)로 교체. Chromium(윈도우 Electron)은 UA에 Chrome 포함 → webm 유지
+    const needsHevcAlpha = /AppleWebKit/i.test(navigator.userAgent) && !/Chrom(e|ium)/i.test(navigator.userAgent)
+    if (needsHevcAlpha) {
+      videoIn.src = 'assets/chick_hevc.mov'
+      videoMarch.src = 'assets/chick_march_hevc.mov'
+    }
+
     const sleep = ms => new Promise(r => setTimeout(r, ms))
     const OFF_L = 'translateX(-50%) translateX(-75vw)'
     const CENTER = 'translateX(-50%)'

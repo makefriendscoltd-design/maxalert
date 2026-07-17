@@ -16,7 +16,8 @@ use serde_json::{json, Value};
 use tauri::{
     menu::MenuBuilder,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State, WebviewUrl,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, PhysicalPosition, PhysicalSize,
+    RunEvent, State, WebviewUrl,
     WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_autostart::{ManagerExt as _, MacosLauncher};
@@ -549,25 +550,35 @@ fn siren_open(app: &AppHandle, todo: &Todo) {
         s.todo_id = Some(todo.id.clone());
         s.generation
     };
-    let monitors = app.available_monitors().unwrap_or_default();
-    let primary_pos = app.primary_monitor().ok().flatten().map(|m| *m.position());
-    let mut labels = Vec::new();
-    for (i, m) in monitors.iter().enumerate() {
-        let label = format!("siren-{}", i);
-        let is_primary = primary_pos.map(|p| p == *m.position()).unwrap_or(i == 0);
-        let url = format!(
-            "siren.html?sound={}&volume={}&stage={}",
-            if is_primary { 1 } else { 0 },
-            volume,
-            urlencode(&stage)
-        );
-        let pos = *m.position();
-        let size = *m.size();
-        let app2 = app.clone();
-        let label2 = label.clone();
-        let _ = app.run_on_main_thread(move || {
+    let app2 = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        // 모니터 열거(NSScreen)는 메인 스레드에서 — 비메인 스레드 호출은 목록 누락 위험
+        let st = app2.state::<AppState>();
+        {
+            let s = st.siren.lock().unwrap();
+            if s.generation != gen {
+                return; // 창 생성 전에 이미 닫힘
+            }
+        }
+        let monitors = app2.available_monitors().unwrap_or_default();
+        let primary_pos = app2.primary_monitor().ok().flatten().map(|m| *m.position());
+        let mut labels = Vec::new();
+        for (i, m) in monitors.iter().enumerate() {
+            let label = format!("siren-{}", i);
+            let is_primary = primary_pos.map(|p| p == *m.position()).unwrap_or(i == 0);
+            let url = format!(
+                "siren.html?sound={}&volume={}&stage={}",
+                if is_primary { 1 } else { 0 },
+                volume,
+                urlencode(&stage)
+            );
+            // macOS 전역 좌표는 포인트(논리) 기준 — 모니터별 배율이 섞이면(내장 2x+외장 1x)
+            // 물리픽셀 배치는 보조 모니터 창이 주 모니터 위에 겹친다 (Electron d.bounds=DIP와 동일하게 논리 사용)
+            let scale = m.scale_factor();
+            let pos = (*m.position()).to_logical::<f64>(scale);
+            let size = (*m.size()).to_logical::<f64>(scale);
             if let Ok(win) =
-                WebviewWindowBuilder::new(&app2, label2, WebviewUrl::App(url.into()))
+                WebviewWindowBuilder::new(&app2, label.clone(), WebviewUrl::App(url.into()))
                     .decorations(false)
                     .skip_taskbar(true)
                     .always_on_top(true)
@@ -578,21 +589,29 @@ fn siren_open(app: &AppHandle, todo: &Todo) {
                     .accept_first_mouse(true)
                     .build()
             {
-                let _ = win.set_position(PhysicalPosition::new(pos.x, pos.y));
-                let _ = win.set_size(PhysicalSize::new(size.width, size.height));
+                let _ = win.set_position(LogicalPosition::new(pos.x, pos.y));
+                let _ = win.set_size(LogicalSize::new(size.width, size.height));
                 let _ = win.show();
                 let _ = win.set_focus();
                 let _ = win.set_always_on_top(true);
                 // 오디오 자동재생 폴백 (JS AudioContext resume 훅 호출)
                 let _ = win.eval(AUTOPLAY_RESUME_JS);
             }
-        });
-        labels.push(label);
-    }
-    {
-        let mut s = state.siren.lock().unwrap();
-        s.labels = labels;
-    }
+            labels.push(label);
+        }
+        let mut s = st.siren.lock().unwrap();
+        if s.generation == gen {
+            s.labels = labels;
+        } else {
+            // 생성 중 siren_close가 지나감 — 방금 만든 창 정리
+            drop(s);
+            for l in labels {
+                if let Some(w) = app2.get_webview_window(&l) {
+                    let _ = w.destroy();
+                }
+            }
+        }
+    });
     let _ = app.emit("siren:todo", todo);
     spawn_focus_timer(app.clone(), gen);
 }
