@@ -1412,6 +1412,13 @@ fn close_siren(app: AppHandle) -> bool {
 
 // ---------- 진입점 ----------
 pub fn run() {
+    // Windows WebView2: 사이렌은 사용자 제스처 없이 소리가 나야 한다 (Electron autoplay-policy 스위치 대응).
+    // 웹뷰 환경 생성 전에 설정해야 반영된다.
+    #[cfg(windows)]
+    std::env::set_var(
+        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+        "--autoplay-policy=no-user-gesture-required",
+    );
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             show_dashboard(app);
