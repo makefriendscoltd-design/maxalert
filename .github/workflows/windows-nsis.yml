@@ -1,0 +1,61 @@
+# 윈도우 Tauri NSIS 빌드 — mac/tauri 브랜치 push 마다 설치기 아티팩트 생성.
+# 산출물: MaxAlert-Setup-<버전>.exe + latest.yml(electron-updater 채널 호환) + sha256.
+# 릴리스 게시는 자동화하지 않는다 — latest.yml 이 올라가는 순간 전 설치 플릿이 갱신되므로 사람이 결정한다.
+name: windows-nsis
+
+on:
+  push:
+    branches: ["mac/tauri"]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust stable (msvc)
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Install tauri-cli
+        run: npm install -g "@tauri-apps/cli@2"
+
+      - name: Build NSIS bundle
+        run: tauri build --bundles nsis
+
+      - name: Package artifacts (latest.yml + sha256)
+        shell: pwsh
+        run: |
+          $conf = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $version = $conf.version
+          $exe = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          if (-not $exe) { throw "NSIS output not found" }
+          New-Item -ItemType Directory -Force dist-win | Out-Null
+          $name = "MaxAlert-Setup-$version.exe"
+          Copy-Item $exe.FullName "dist-win/$name"
+          $bytes = [IO.File]::ReadAllBytes("dist-win/$name")
+          $sha512 = [Convert]::ToBase64String([System.Security.Cryptography.SHA512]::Create().ComputeHash($bytes))
+          $sha256 = (Get-FileHash "dist-win/$name" -Algorithm SHA256).Hash.ToLower()
+          $size = $bytes.Length
+          $date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+          $lines = @(
+            "version: $version",
+            "files:",
+            "  - url: $name",
+            "    sha512: $sha512",
+            "    size: $size",
+            "path: $name",
+            "sha512: $sha512",
+            "releaseDate: '$date'"
+          )
+          $lines | Set-Content dist-win/latest.yml -Encoding utf8NoBOM
+          "$sha256  $name" | Set-Content dist-win/SHA256SUMS -Encoding utf8NoBOM
+          Get-Content dist-win/latest.yml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-nsis-${{ github.run_number }}
+          path: dist-win/*
+          if-no-files-found: error

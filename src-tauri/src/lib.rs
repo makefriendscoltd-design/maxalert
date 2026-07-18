@@ -28,8 +28,14 @@ use store::{Data, PostitPos, Settings, Store, Todo};
 
 const COLORS: [&str; 6] = ["yellow", "pink", "blue", "green", "purple", "orange"];
 const AUTOPLAY_RESUME_JS: &str = "window.__maxalertResumeAudio && window.__maxalertResumeAudio();";
+#[cfg(not(target_os = "windows"))]
 const UPDATE_CHECK_URL: &str = "https://api.aimax.ai.kr/api/workers";
 const UPDATE_DOWNLOAD_URL: &str = "https://lounge.aimax.ai.kr";
+/// 윈도우 사일런트 자동업데이트 매니페스트 — 파트너의 기존 릴리스 채널(electron-updater latest.yml)을
+/// 그대로 소비해 채널 연속성을 유지한다. 실기 검증용 오버라이드: MAXALERT_UPDATE_URL.
+#[cfg(target_os = "windows")]
+const UPDATE_MANIFEST_URL: &str =
+    "https://github.com/makefriendscoltd-design/maxalert-releases/releases/latest/download/latest.yml";
 
 static QUITTING: AtomicBool = AtomicBool::new(false);
 
@@ -110,6 +116,7 @@ fn version_is_newer(candidate: &str, current: &str) -> Option<bool> {
     Some(candidate > current)
 }
 
+#[cfg(not(target_os = "windows"))]
 async fn fetch_latest_version(client: &reqwest::Client) -> Option<String> {
     let response = client
         .get(UPDATE_CHECK_URL)
@@ -131,27 +138,207 @@ async fn fetch_latest_version(client: &reqwest::Client) -> Option<String> {
     None
 }
 
+/// electron-builder latest.yml 최소 파서 — 최상위 version / path / sha512 만 읽는다.
+/// (files: 하위 목록은 들여쓰기라 건너뛴다. 컨트롤된 포맷 전제의 의도적 최소 구현.)
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+#[derive(Debug, PartialEq)]
+struct UpdateManifest {
+    version: String,
+    path: String,
+    sha512_b64: String,
+}
+
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn parse_update_manifest(text: &str) -> Option<UpdateManifest> {
+    let mut version = None;
+    let mut path = None;
+    let mut sha512 = None;
+    for line in text.lines() {
+        if line.starts_with(' ') || line.starts_with('\t') || line.starts_with('-') {
+            continue;
+        }
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        let value = value.trim().trim_matches('\'').trim_matches('"');
+        if value.is_empty() {
+            continue;
+        }
+        match key.trim() {
+            "version" => version = Some(value.to_string()),
+            "path" => path = Some(value.to_string()),
+            "sha512" => sha512 = Some(value.to_string()),
+            _ => {}
+        }
+    }
+    Some(UpdateManifest {
+        version: version?,
+        path: path?,
+        sha512_b64: sha512?,
+    })
+}
+
+/// 매니페스트 URL 과 같은 디렉터리의 파일 URL (GitHub releases/latest/download/ 규약과 테스트 서버 공용)
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn sibling_url(manifest_url: &str, file: &str) -> Option<String> {
+    let (base, _) = manifest_url.rsplit_once('/')?;
+    Some(format!("{base}/{file}"))
+}
+
+/// 업데이트 URL 허용 규칙: https 전부, http 는 로컬 실기 검증용 루프백만.
+/// (MAXALERT_UPDATE_URL 오버라이드가 평문 http 원격을 가리키는 MITM 창구가 되지 않게.)
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn update_url_allowed(url: &str) -> bool {
+    url.starts_with("https://")
+        || url.starts_with("http://127.0.0.1")
+        || url.starts_with("http://localhost")
+}
+
+/// 윈도우 사일런트 자동업데이트 1회 시도. Electron 시절의 quitAndInstall(true, true) 동작을 계승:
+/// 새 버전 발견 → 다운로드 → sha512 검증 → /S 설치 실행.
+/// 자진 종료하지 않는다 — 설치기 PREINSTALL 훅의 taskkill 이 앱을 닫는다. 설치기가 그 전에
+/// 실패(CRC·WebView2 등)하면 앱은 계속 살아 있고 다음 주기에 재시도한다.
+/// 반환 true = 사이렌 발화 중이라 연기 (짧은 주기로 재시도).
+#[cfg(target_os = "windows")]
+async fn run_silent_update(app: &AppHandle, client: &reqwest::Client, manifest_url: &str) -> bool {
+    use base64::Engine as _;
+    use sha2::{Digest as _, Sha512};
+
+    fn siren_active(app: &AppHandle) -> bool {
+        let state = app.state::<AppState>();
+        let active = state
+            .siren
+            .lock()
+            .map(|s| s.todo_id.is_some())
+            .unwrap_or(false);
+        active
+    }
+
+    if !update_url_allowed(manifest_url) {
+        return false;
+    }
+    if siren_active(app) {
+        return true; // 마감 3분 전 사이렌을 업데이트 재시작으로 끊지 않는다
+    }
+    let Ok(response) = client.get(manifest_url).send().await else {
+        return false;
+    };
+    let Ok(response) = response.error_for_status() else {
+        return false;
+    };
+    let Ok(text) = response.text().await else {
+        return false;
+    };
+    let Some(manifest) = parse_update_manifest(&text) else {
+        return false;
+    };
+    let current = app.package_info().version.to_string();
+    if version_is_newer(&manifest.version, &current) != Some(true) {
+        return false;
+    }
+    let Some(exe_url) = sibling_url(manifest_url, &manifest.path) else {
+        return false;
+    };
+    let Ok(download) = client.get(&exe_url).send().await else {
+        return false;
+    };
+    let Ok(download) = download.error_for_status() else {
+        return false;
+    };
+    let Ok(bytes) = download.bytes().await else {
+        return false;
+    };
+    let Ok(expected) =
+        base64::engine::general_purpose::STANDARD.decode(manifest.sha512_b64.as_bytes())
+    else {
+        return false;
+    };
+    if Sha512::digest(&bytes).as_slice() != expected.as_slice() {
+        return false; // 해시 불일치 — 절대 설치하지 않는다
+    }
+    // 다운로드(최대 수 분) 사이에 사이렌이 시작됐을 수 있다 — 실행 직전 재확인
+    if siren_active(app) {
+        return true;
+    }
+    // 파일명에 랜덤 접미사 + create_new: 예측 가능한 경로 재사용/치환 창구 축소
+    let installer = std::env::temp_dir().join(format!(
+        "maxalert-update-{}-{}.exe",
+        manifest.version,
+        rand_suffix()
+    ));
+    {
+        use std::io::Write as _;
+        let Ok(mut f) = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&installer)
+        else {
+            return false;
+        };
+        if f.write_all(&bytes).is_err() {
+            return false;
+        }
+    }
+    let _ = std::process::Command::new(&installer)
+        .args(["/S", "--updated"])
+        .spawn();
+    false
+}
+
 fn spawn_update_poll(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
-        let client = match reqwest::Client::builder()
-            .timeout(Duration::from_secs(15))
-            .build()
+        #[cfg(target_os = "windows")]
         {
-            Ok(client) => client,
-            Err(_) => return,
-        };
-        let current = app.package_info().version.to_string();
-        let mut emitted = HashSet::new();
-        tokio::time::sleep(Duration::from_secs(5 * 60)).await;
-        loop {
-            if let Some(version) = fetch_latest_version(&client).await {
-                if version_is_newer(&version, &current) == Some(true)
-                    && emitted.insert(version.clone())
-                {
-                    let _ = app.emit("update:available", json!({ "version": version }));
-                }
+            let client = match reqwest::Client::builder()
+                .connect_timeout(Duration::from_secs(15))
+                .timeout(Duration::from_secs(10 * 60))
+                .build()
+            {
+                Ok(client) => client,
+                Err(_) => return,
+            };
+            let override_url = std::env::var("MAXALERT_UPDATE_URL").ok();
+            let test_mode = override_url.is_some();
+            let manifest_url = override_url.unwrap_or_else(|| UPDATE_MANIFEST_URL.to_string());
+            let (initial, interval) = if test_mode {
+                (Duration::from_secs(15), Duration::from_secs(60))
+            } else {
+                (Duration::from_secs(5 * 60), Duration::from_secs(6 * 60 * 60))
+            };
+            tokio::time::sleep(initial).await;
+            loop {
+                let postponed = run_silent_update(&app, &client, &manifest_url).await;
+                // 사이렌 때문에 연기됐으면 6시간을 다 기다리지 않고 10분 뒤 재시도
+                let delay = if postponed && !test_mode {
+                    Duration::from_secs(10 * 60)
+                } else {
+                    interval
+                };
+                tokio::time::sleep(delay).await;
             }
-            tokio::time::sleep(Duration::from_secs(6 * 60 * 60)).await;
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let client = match reqwest::Client::builder()
+                .timeout(Duration::from_secs(15))
+                .build()
+            {
+                Ok(client) => client,
+                Err(_) => return,
+            };
+            let current = app.package_info().version.to_string();
+            let mut emitted = HashSet::new();
+            tokio::time::sleep(Duration::from_secs(5 * 60)).await;
+            loop {
+                if let Some(version) = fetch_latest_version(&client).await {
+                    if version_is_newer(&version, &current) == Some(true)
+                        && emitted.insert(version.clone())
+                    {
+                        let _ = app.emit("update:available", json!({ "version": version }));
+                    }
+                }
+                tokio::time::sleep(Duration::from_secs(6 * 60 * 60)).await;
+            }
         }
     });
 }
@@ -1591,7 +1778,51 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::version_is_newer;
+    use super::{
+        parse_update_manifest, sibling_url, update_url_allowed, version_is_newer, UpdateManifest,
+    };
+
+    #[test]
+    fn update_url_scheme_restriction() {
+        assert!(update_url_allowed("https://github.com/x/latest.yml"));
+        assert!(update_url_allowed("http://127.0.0.1:8899/latest.yml"));
+        assert!(update_url_allowed("http://localhost:8899/latest.yml"));
+        assert!(!update_url_allowed("http://100.95.243.74:8899/latest.yml"));
+        assert!(!update_url_allowed("ftp://example.com/latest.yml"));
+    }
+
+    #[test]
+    fn update_manifest_parses_electron_builder_latest_yml() {
+        // 파트너 릴리스 채널의 실제 latest.yml 형태 (v0.1.17 실물 기준)
+        let yml = "version: 0.1.17\nfiles:\n  - url: MaxAlert-Setup-0.1.17.exe\n    sha512: nested==\n    size: 96034228\npath: MaxAlert-Setup-0.1.17.exe\nsha512: topLevel==\nreleaseDate: '2026-07-15T03:38:44.350Z'\n";
+        assert_eq!(
+            parse_update_manifest(yml),
+            Some(UpdateManifest {
+                version: "0.1.17".into(),
+                path: "MaxAlert-Setup-0.1.17.exe".into(),
+                sha512_b64: "topLevel==".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn update_manifest_rejects_incomplete_yml() {
+        assert_eq!(parse_update_manifest("version: 0.2.2\n"), None);
+        assert_eq!(parse_update_manifest(""), None);
+    }
+
+    #[test]
+    fn sibling_url_joins_manifest_directory() {
+        assert_eq!(
+            sibling_url(
+                "https://github.com/o/r/releases/latest/download/latest.yml",
+                "MaxAlert-Setup-0.2.2.exe"
+            )
+            .as_deref(),
+            Some("https://github.com/o/r/releases/latest/download/MaxAlert-Setup-0.2.2.exe")
+        );
+        assert_eq!(sibling_url("no-slash", "a.exe"), None);
+    }
 
     #[test]
     fn version_comparison_detects_upgrade() {

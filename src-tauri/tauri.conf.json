@@ -30,6 +30,18 @@
     "category": "Productivity",
     "macOS": {
       "signingIdentity": "-"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "installerHooks": "./installer-hooks.nsh",
+        "languages": ["Korean"],
+        "displayLanguageSelector": false
+      }
     }
   }
 }

@@ -315,13 +315,24 @@ impl Store {
     pub fn load(primary: PathBuf, electron_src: Option<PathBuf>, byeadhd_src: Option<PathBuf>) -> Store {
         if !primary.exists() {
             for src in [electron_src, byeadhd_src].into_iter().flatten() {
-                if src.exists() {
-                    if let Some(parent) = primary.parent() {
-                        let _ = fs::create_dir_all(parent);
-                    }
-                    if fs::copy(&src, &primary).is_ok() {
-                        break;
-                    }
+                if !src.exists() {
+                    continue;
+                }
+                // 원본을 파싱까지 검증한 뒤 임시 파일 → rename 으로 원자 이관.
+                // 복사 도중 중단된 불완전 파일이 primary 로 확정되는 사고 방지.
+                // 원본 문자열을 그대로 쓴다 (재직렬화 시 미지 필드 유실 방지).
+                let Ok(raw) = fs::read_to_string(&src) else {
+                    continue;
+                };
+                if serde_json::from_str::<Data>(&raw).is_err() {
+                    continue;
+                }
+                if let Some(parent) = primary.parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
+                let tmp = primary.with_extension("json.tmp");
+                if fs::write(&tmp, &raw).is_ok() && fs::rename(&tmp, &primary).is_ok() {
+                    break;
                 }
             }
         }
@@ -340,8 +351,13 @@ impl Store {
         if let Some(parent) = self.file.parent() {
             let _ = fs::create_dir_all(parent);
         }
+        // 임시 파일 → rename 원자 교체: 저장 중 강제 종료(업데이트 taskkill 등)돼도
+        // 파일이 절단된 채 남아 다음 실행에서 포인트·스트릭이 초기화되는 사고 방지.
         if let Ok(s) = serde_json::to_string_pretty(&self.data) {
-            let _ = fs::write(&self.file, s);
+            let tmp = self.file.with_extension("json.tmp");
+            if fs::write(&tmp, s).is_ok() {
+                let _ = fs::rename(&tmp, &self.file);
+            }
         }
         self.last_write_mtime = fs::metadata(&self.file).and_then(|m| m.modified()).ok();
     }
