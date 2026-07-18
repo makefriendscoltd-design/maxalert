@@ -56,6 +56,19 @@ struct AppState {
 }
 
 // ---------- 헬퍼 ----------
+/// 창 생성/파괴는 반드시 이벤트 루프 큐를 거쳐 메인 스레드에서 실행한다.
+/// 동기 invoke 커맨드는 WebView2 IPC 콜백 안에서 인라인 실행되는데(윈도우),
+/// 이미 메인 스레드라 run_on_main_thread 가 클로저를 즉시 인라인 실행하고,
+/// 그 콜백 안에서 웹뷰를 만들거나 부수면 WebView2 재진입 제한으로 메인 스레드가
+/// 데드락된다 (실측: AIXLIFE — 사이렌 창 about:blank 정지 + invoke 파이프라인 전체 사망).
+/// async 런타임을 한 번 경유하면 run_on_main_thread 가 항상 프록시 큐로 보낸다.
+fn defer_main<F: FnOnce() + Send + 'static>(app: &AppHandle, f: F) {
+    let app2 = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let _ = app2.run_on_main_thread(f);
+    });
+}
+
 fn rand_suffix() -> String {
     use std::sync::atomic::AtomicU64;
     static CTR: AtomicU64 = AtomicU64::new(0);
@@ -386,13 +399,13 @@ fn push_todos(app: &AppHandle) {
 
 // ---------- 창: 대시보드 / 포스트잇 ----------
 fn show_dashboard(app: &AppHandle) {
-    if let Some(win) = app.get_webview_window("dashboard") {
-        let _ = win.show();
-        let _ = win.set_focus();
-        return;
-    }
     let app2 = app.clone();
-    let _ = app.run_on_main_thread(move || {
+    defer_main(app, move || {
+        if let Some(win) = app2.get_webview_window("dashboard") {
+            let _ = win.show();
+            let _ = win.set_focus();
+            return;
+        }
         let _ = WebviewWindowBuilder::new(&app2, "dashboard", WebviewUrl::App("dashboard.html".into()))
             .title("MaxAlert")
             .inner_size(540.0, 780.0)
@@ -441,7 +454,7 @@ fn create_postit_window(app: &AppHandle) {
         None => (mx + mw - width, my),
     };
     let app2 = app.clone();
-    let _ = app.run_on_main_thread(move || {
+    defer_main(app, move || {
         if let Ok(win) =
             WebviewWindowBuilder::new(&app2, "postit", WebviewUrl::App("postit.html".into()))
                 .decorations(false)
@@ -524,7 +537,7 @@ fn sync_postit_mini_windows(app: &AppHandle) {
     };
     for label in stale_labels {
         let app2 = app.clone();
-        let _ = app.run_on_main_thread(move || {
+        defer_main(app, move || {
             if let Some(win) = app2.get_webview_window(&label) {
                 let _ = win.destroy();
             }
@@ -583,7 +596,7 @@ fn sync_postit_mini_windows(app: &AppHandle) {
         let size = PhysicalSize::new(width, work_area.size.height);
         let app2 = app.clone();
         let label2 = label.clone();
-        let _ = app.run_on_main_thread(move || {
+        defer_main(app, move || {
             let still_desired = app2
                 .state::<AppState>()
                 .mini_postits
@@ -738,7 +751,7 @@ fn siren_open(app: &AppHandle, todo: &Todo) {
         s.generation
     };
     let app2 = app.clone();
-    let _ = app.run_on_main_thread(move || {
+    defer_main(app, move || {
         // 모니터 열거(NSScreen)는 메인 스레드에서 — 비메인 스레드 호출은 목록 누락 위험
         let st = app2.state::<AppState>();
         {
@@ -813,7 +826,7 @@ fn siren_close(app: &AppHandle) {
     };
     for l in labels {
         let app2 = app.clone();
-        let _ = app.run_on_main_thread(move || {
+        defer_main(app, move || {
             if let Some(w) = app2.get_webview_window(&l) {
                 let _ = w.destroy();
             }
@@ -870,7 +883,7 @@ fn open_reward(app: &AppHandle, info: logic::RewardInfo) {
         info.min
     );
     let app2 = app.clone();
-    let _ = app.run_on_main_thread(move || {
+    defer_main(app, move || {
         if let Ok(win) = WebviewWindowBuilder::new(&app2, "reward", WebviewUrl::App(url.into()))
             .decorations(false)
             .transparent(true)
@@ -1643,9 +1656,13 @@ fn app_quit(app: AppHandle) -> bool {
 
 #[tauri::command]
 fn reward_close(app: AppHandle) -> bool {
-    if let Some(win) = app.get_webview_window("reward") {
-        let _ = win.destroy();
-    }
+    // 보상 창 자신의 invoke 콜백 안에서 자기 웹뷰를 destroy 하면 재진입 데드락(윈도우)
+    let app2 = app.clone();
+    defer_main(&app, move || {
+        if let Some(win) = app2.get_webview_window("reward") {
+            let _ = win.destroy();
+        }
+    });
     true
 }
 
