@@ -948,6 +948,11 @@ fn push_notion_done(app: &AppHandle, id: String) {
         let (token, db, page_id, done) = {
             let store = state.store.lock().unwrap();
             let s = &store.data.settings;
+            // 기본은 노션 원본을 건드리지 않는다. 되밀어 쓰면 노션에서 완료 항목을
+            // 걸러내는 뷰를 쓸 때 일정이 사라진 것처럼 보인다.
+            if !s.notion_push_done {
+                return;
+            }
             match store.data.todos.iter().find(|t| t.id == id) {
                 Some(t)
                     if !s.notion_token.is_empty()
@@ -1027,6 +1032,11 @@ async fn do_sync_inner(
     let removed;
     let mut reward: Option<logic::RewardInfo> = None;
     let mut to_push_done: Vec<(String, bool)> = Vec::new();
+    let push_done_enabled = {
+        let state = app.state::<AppState>();
+        let store = state.store.lock().unwrap();
+        store.data.settings.notion_push_done
+    };
     {
         let state = app.state::<AppState>();
         let mut store = state.store.lock().unwrap();
@@ -1111,7 +1121,10 @@ async fn do_sync_inner(
                             store.data.todos[i].awarded = Some(0);
                             store.data.stats.total_done = (store.data.stats.total_done - 1).max(0);
                         }
-                    } else if store.data.todos[i].done != p.done {
+                    } else if push_done_enabled && store.data.todos[i].done != p.done {
+                        // 되밀기가 꺼져 있으면 notion_done 을 앱 값으로 덮어써서는 안 된다.
+                        // 노션에 쓰지도 않고 기록만 바꾸면, 다음 동기화에서 "노션이
+                        // 완료를 해제했다"고 오판해 사용자의 완료 표시를 되돌린다.
                         to_push_done.push((p.id.clone(), store.data.todos[i].done));
                         store.data.todos[i].notion_done = Some(store.data.todos[i].done);
                     }
