@@ -82,6 +82,9 @@ pub struct Settings {
     pub postit_theme: String,
     #[serde(default)]
     pub postit_focus: bool,
+    /// 보조 모니터에도 미니 포스트잇을 띄울지. 기본은 주 모니터 한 곳에만 표시.
+    #[serde(default)]
+    pub postit_all_monitors: bool,
     #[serde(default = "default_unlocked")]
     pub unlocked_themes: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -112,6 +115,7 @@ impl Default for Settings {
             siren_volume: default_volume(),
             postit_theme: default_theme(),
             postit_focus: false,
+            postit_all_monitors: false,
             unlocked_themes: default_unlocked(),
             postit_pos: None,
             postit_mini_pos: HashMap::new(),

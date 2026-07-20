@@ -26,8 +26,14 @@ pub struct NotionPage {
     pub done: bool,
 }
 
+// 응답 없는 소켓에 매달려 동기화 잠금(notion_busy)이 영영 풀리지 않는 것을 막는다
+const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+
 fn client() -> reqwest::Client {
-    reqwest::Client::new()
+    reqwest::Client::builder()
+        .timeout(TIMEOUT)
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
 }
 
 async fn req(

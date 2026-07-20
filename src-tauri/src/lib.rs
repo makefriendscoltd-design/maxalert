@@ -504,7 +504,18 @@ fn postit_mini_label(key: &str) -> String {
 }
 
 fn sync_postit_mini_windows(app: &AppHandle) {
-    let monitors = app.available_monitors().unwrap_or_default();
+    // 기본값은 주 모니터 한 곳에만 표시. 켜져 있을 때만 보조 모니터에 미니 포스트잇을 띄운다.
+    // 목록을 비워 두면 아래 stale 정리 로직이 이미 떠 있던 미니 창들을 알아서 닫는다.
+    let all_monitors = {
+        let state = app.state::<AppState>();
+        let store = state.store.lock().unwrap();
+        store.data.settings.postit_all_monitors
+    };
+    let monitors = if all_monitors {
+        app.available_monitors().unwrap_or_default()
+    } else {
+        Vec::new()
+    };
     let primary_pos = app.primary_monitor().ok().flatten().map(|m| *m.position());
     let desired: HashMap<String, (String, tauri::Monitor)> = monitors
         .into_iter()
@@ -1058,6 +1069,18 @@ async fn do_sync_inner(
                 }
                 Some(i) => {
                     store.data.todos[i].title = p.title.clone();
+                    // 지난 날짜에 남아 있던 항목이 오늘 다시 조회됨 = 반복 일정의 새 occurrence.
+                    // 오늘 날짜로 옮기지 않으면 옛 날짜에 계속 머물러 오늘 목록이 비어 보인다.
+                    // 완료 여부는 노션 값을 그대로 채택한다. false 로 강제하면 아래 되밀기
+                    // 로직이 노션 체크박스를 해제해 버린다.
+                    if store.data.todos[i].date != today {
+                        store.data.todos[i].date = today.clone();
+                        store.data.todos[i].done = p.done;
+                        store.data.todos[i].notion_done = Some(p.done);
+                        store.data.todos[i].done_at = None;
+                        store.data.todos[i].awarded = Some(0);
+                        store.data.todos[i].ack_due = None;
+                    }
                     if p.due_at != store.data.todos[i].notion_due_at {
                         store.data.todos[i].due_at = p.due_at;
                         store.data.todos[i].notion_due_at = p.due_at;
