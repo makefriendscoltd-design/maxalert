@@ -12,6 +12,11 @@
     cursor: default;
     -webkit-font-smoothing: antialiased;
   }
+  body.audio-failed { animation-duration: 0.35s; }
+  .ic {
+    width: 1em; height: 1em; display: inline-block; flex: 0 0 auto;
+    vertical-align: -0.14em; color: inherit;
+  }
   @keyframes flash {
     0%, 42% { background: #8f0000; }
     43%, 49% { background: #2a0000; }
@@ -27,8 +32,15 @@
     text-align: center; color: #fff; max-width: 900px; padding: 40px;
     position: relative; z-index: 2;
   }
+  .hazard-bar {
+    width: min(620px, 78vw); height: 8px; margin: 0 auto;
+    border-radius: 4px;
+    background: repeating-linear-gradient(45deg, #c22a12 0 14px, #8f1d0c 14px 28px);
+    box-shadow: 0 0 14px rgba(194,42,18,0.42);
+  }
   .code {
     font-size: 58px; font-weight: 900; letter-spacing: 12px;
+    margin: 18px 0;
     animation: pulse 0.5s infinite;
     text-shadow: 0 0 40px rgba(255,255,255,0.35);
   }
@@ -36,14 +48,18 @@
 
   .glass {
     margin: 34px auto 0;
-    background: rgba(0, 0, 0, 0.45);
+    background: linear-gradient(170deg, rgba(30,34,46,0.90), rgba(20,23,32,0.90));
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,0.18);
-    border-radius: 22px;
+    border: 1px solid rgba(140,160,255,0.22);
+    border-radius: 18px;
     padding: 34px 44px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.5);
   }
-  .task { font-size: 40px; font-weight: 800; word-break: keep-all; line-height: 1.3; }
+  .task {
+    font-size: 40px; font-weight: 800; line-height: 1.3;
+    word-break: keep-all; overflow-wrap: anywhere;
+  }
   .countdown {
     font-size: 56px; font-weight: 900; margin-top: 14px;
     font-variant-numeric: tabular-nums;
@@ -55,7 +71,7 @@
 
   .actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 34px; }
   button {
-    border: none; border-radius: 999px; cursor: pointer;
+    border: 1px solid rgba(140,160,255,0.22); border-radius: 10px; cursor: pointer;
     font-size: 19px; font-weight: 800; padding: 16px 30px;
     font-family: inherit;
     transition: transform 0.1s, filter 0.1s;
@@ -64,15 +80,45 @@
   button:active { transform: scale(0.97); }
   .btn-done {
     background: linear-gradient(135deg, #10b981, #059669);
+    border-color: rgba(110,231,183,0.42);
     color: #fff; font-size: 23px; padding: 20px 46px;
     box-shadow: 0 8px 30px rgba(16,185,129,0.45);
   }
+  .btn-done .ic { width: 21px; height: 21px; margin-right: 7px; }
   .btn-snooze {
-    background: rgba(255,255,255,0.14);
-    border: 1px solid rgba(255,255,255,0.35);
+    background: rgba(16,19,28,0.78);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border-color: rgba(140,160,255,0.30);
     color: #fff;
   }
   .hint { margin-top: 30px; font-size: 14px; opacity: 0.7; letter-spacing: 0.3px; }
+
+  .audio-failed-banner {
+    display: none; position: fixed; z-index: 5; top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: min(680px, calc(100% - 32px));
+    padding: 18px 22px;
+    color: #fee2e2; text-align: center; font-size: 15px; font-weight: 900;
+    background: rgba(120,20,20,0.5);
+    border: 1px solid #ef4444;
+    box-shadow: 0 0 16px rgba(239,68,68,0.45);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    animation: audio-warning 0.7s infinite;
+  }
+  .audio-failed-banner::before,
+  .audio-failed-banner::after {
+    content: ''; position: absolute; left: 0; right: 0; height: 6px;
+    background: repeating-linear-gradient(45deg, #c22a12 0 14px, #8f1d0c 14px 28px);
+  }
+  .audio-failed-banner::before { top: 0; }
+  .audio-failed-banner::after { bottom: 0; }
+  body.audio-failed .audio-failed-banner { display: block; }
+  @keyframes audio-warning {
+    0%, 100% { filter: brightness(0.78); }
+    50% { filter: brightness(1.3); }
+  }
 
   /* ===== 병아리 경찰관 ===== */
   #chickWrap {
@@ -86,26 +132,49 @@
 </style>
 </head>
 <body>
+  <svg style="display:none" aria-hidden="true" focusable="false">
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path fill="currentColor" d="M13.2 2 4.8 13.2h6.1L9.8 22l9.4-12.3h-6.1z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M5 4 2.8 6.2M19 4l2.2 2.2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.2 4.2L19 6.5"/></symbol>
+    <symbol id="i-flame" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4.2 0 7-2.9 7-7.1 0-3.4-1.9-6.4-5.1-9.2.1 2.4-.8 4.1-2.2 5.4.2-3.3-1.5-6.1-4.2-8.1.2 4.8-3.7 7.4-3.7 11.9C3.8 19.1 6.9 22 12 22Z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3m3 0-1 14H7L6 7m4 4v6m4-6v6"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 20 4.2-1 10.6-10.6-3.2-3.2L5 15.8 4 20Zm10-13.2 3.2 3.2M4 20h5"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 8h7M9 12h7M9 16h7"/><circle cx="7" cy="8" r=".7" fill="currentColor" stroke="none"/><circle cx="7" cy="12" r=".7" fill="currentColor" stroke="none"/><circle cx="7" cy="16" r=".7" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-bomb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="14" r="7" fill="currentColor" stroke="none"/><path d="m15 8.5 2-2 2 1.5 1-2"/><circle cx="21" cy="4" r="1.3" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-burst" viewBox="0 0 24 24"><path fill="currentColor" d="m12 2 2.3 5.2 5.4-2.9-2.9 5.4L22 12l-5.2 2.3 2.9 5.4-5.4-2.9L12 22l-2.3-5.2-5.4 2.9 2.9-5.4L2 12l5.2-2.3-2.9-5.4 5.4 2.9z"/></symbol>
+    <symbol id="i-trophy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v4c0 4-1.8 6-4 6s-4-2-4-6V4Zm0 2H4v2c0 2.2 1.5 4 4 4m8-6h4v2c0 2.2-1.5 4-4 4m-4 2v4m-4 2h8"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9 7 7m10 10 2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10 13.8 4-3.6M8.5 16.5l-1 1a4 4 0 0 1-5.7-5.7l3-3a4 4 0 0 1 5.7 0M15.5 7.5l1-1a4 4 0 0 1 5.7 5.7l-3 3a4 4 0 0 1-5.7 0"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.4 2.5 3.6 5.5 3.6 9S14.4 18.5 12 21c-2.4-2.5-3.6-5.5-3.6-9S9.6 5.5 12 3Z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  </svg>
+  <div class="audio-failed-banner" role="alert">소리 재생 실패 — 화면 알림 모드</div>
   <div class="panel">
-    <div class="code">🚨 CODE BLUE 🚨</div>
+    <div class="hazard-bar"></div>
+    <div class="code">CODE BLUE</div>
+    <div class="hazard-bar"></div>
     <div class="glass">
       <div class="task" id="task">일정</div>
       <div class="countdown" id="countdown">--:--</div>
       <div class="sub" id="sub"></div>
     </div>
     <div class="actions">
-      <button class="btn-done" id="btnDone">✅ 완료 +20⚡</button>
+      <button class="btn-done" id="btnDone"><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>완료 +20P</button>
       <button class="btn-snooze" data-min="5">5분 미루기</button>
       <button class="btn-snooze" data-min="15">15분 미루기</button>
       <button class="btn-snooze" data-min="60">1시간 미루기</button>
+      <button class="btn-snooze btn-nextday" id="btnNextday">다음 평일</button>
     </div>
-    <div class="hint">완료 또는 미루기를 선택할 때까지 사이렌은 꺼지지 않습니다 · 미루기 -3⚡</div>
+    <div class="hint">완료 또는 미루기를 선택할 때까지 사이렌은 꺼지지 않습니다 · 미루기 -3P</div>
   </div>
 
   <div id="chickWrap">
-    <video id="chickVideo" src="../assets/chick.webm" muted playsinline preload="auto"></video>
-    <video id="chickMarch" src="../assets/chick_march.webm" muted playsinline loop preload="auto" style="display:none"></video>
+    <video id="chickVideo" src="assets/chick.webm" muted playsinline preload="auto"></video>
+    <video id="chickMarch" src="assets/chick_march.webm" muted playsinline loop preload="auto" style="display:none"></video>
   </div>
+
+<script src="api-tauri.js"></script>
 
 <script>
   const params = new URLSearchParams(location.search)
@@ -135,7 +204,7 @@
       const over = Math.floor(-r / 60000)
       el.textContent = over < 1 ? 'NOW' : `+${over}분`
       el.classList.add('overdue')
-      sub.textContent = '💥 이미 시작 시간이 지났습니다!'
+      sub.textContent = '이미 시작 시간이 지났습니다!'
     }
   }
 
@@ -144,6 +213,7 @@
   })
   document.querySelectorAll('.btn-snooze').forEach(b => {
     b.addEventListener('click', () => {
+      if (b.id === 'btnNextday') { if (todo) window.api.postponeTodoToNextWeekday(todo.id); return }
       if (todo) window.api.postponeTodo(todo.id, parseInt(b.dataset.min, 10))
     })
   })
@@ -156,6 +226,14 @@
     const wrap = document.getElementById('chickWrap')
     const videoIn = document.getElementById('chickVideo')   // 정면 등장 + 노려봄
     const videoMarch = document.getElementById('chickMarch') // 옆모습 제자리 행진
+
+    // WKWebView(맥 Tauri)는 VP9 알파를 렌더링하지 못해 배경째 재생됨
+    // → WebKit에서만 HEVC-with-alpha(hvc1 .mov)로 교체. Chromium(윈도우 Electron)은 UA에 Chrome 포함 → webm 유지
+    const needsHevcAlpha = /AppleWebKit/i.test(navigator.userAgent) && !/Chrom(e|ium)/i.test(navigator.userAgent)
+    if (needsHevcAlpha) {
+      videoIn.src = 'assets/chick_hevc.mov'
+      videoMarch.src = 'assets/chick_march_hevc.mov'
+    }
 
     const sleep = ms => new Promise(r => setTimeout(r, ms))
     const OFF_L = 'translateX(-50%) translateX(-75vw)'
@@ -216,6 +294,12 @@
   // ---- 코드블루 사이렌 사운드 (Web Audio 합성) ----
   if (withSound) {
     const ctx = new AudioContext()
+    const syncAudioFallback = () => {
+      document.body.classList.toggle('audio-failed', ctx.state !== 'running')
+    }
+    ctx.addEventListener('statechange', syncAudioFallback)
+    setTimeout(syncAudioFallback, 1500)
+
     const master = ctx.createGain()
     master.gain.value = volume * 0.6
     master.connect(ctx.destination)

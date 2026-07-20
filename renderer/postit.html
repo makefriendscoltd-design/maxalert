@@ -11,25 +11,44 @@
     display: flex; flex-direction: column; gap: 12px;
     -webkit-font-smoothing: antialiased;
   }
+  .ic {
+    width: 1em; height: 1em; display: inline-block; flex: 0 0 auto;
+    vertical-align: -0.14em; color: inherit;
+  }
+  .egg {
+    display: inline-block; width: 30px; height: 38px;
+    border-radius: 50% 50% 46% 46%;
+    background: linear-gradient(160deg, #fff7e0, #f0d896);
+    border: 1px solid rgba(255,255,255,0.7);
+    box-shadow: inset -4px -5px 8px rgba(157,117,43,0.12), 0 5px 10px rgba(0,0,0,0.24);
+  }
 
   /* ===== 상단 바 ===== */
   .topbar {
-    display: flex; justify-content: flex-end; align-items: center; gap: 8px;
+    display: flex; justify-content: flex-end; align-items: center; gap: 6px;
     opacity: 0.4; transition: opacity 0.2s;
   }
   body.side-left .topbar { justify-content: flex-start; }
   .topbar:hover { opacity: 1; }
   .pill {
-    display: flex; align-items: center; gap: 5px;
-    background: rgba(13, 15, 20, 0.88);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 999px; padding: 5px 12px;
+    display: flex; align-items: center; gap: 4px;
+    white-space: nowrap; flex-shrink: 0;
+    background: rgba(16,19,28,0.78);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(140,160,255,0.22);
+    border-radius: 10px; padding: 5px 9px;
     font-size: 12px; font-weight: 700; color: #e9ecf4;
   }
-  .pill.pts { color: #fbbf24; }
+  .pill.pts { color: #f5c451; }
   button.pill { cursor: pointer; }
-  button.pill:hover { border-color: rgba(255,255,255,0.35); }
+  button.pill:hover { border-color: rgba(140,160,255,0.48); }
+  button.focus-toggle.is-on {
+    color: #ede9fe;
+    background: rgba(91, 33, 182, 0.92);
+    border-color: rgba(196, 181, 253, 0.9);
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.35);
+  }
   .grip {
     cursor: move;
     letter-spacing: 1px;
@@ -37,6 +56,10 @@
   }
   .grip:active { border-color: rgba(255,255,255,0.5); }
   button.quit:hover { border-color: rgba(255,80,80,0.8); color: #ff7b7b; }
+  body.mini .focus-toggle,
+  body.mini #btnOpen,
+  body.mini #btnQuit,
+  body.mini .level-character-row { display: none; }
 
   #stack {
     display: flex; flex-direction: column; gap: 13px;
@@ -47,16 +70,21 @@
   /* ===== 포스트잇 ===== */
   .postit {
     position: relative;
-    border-radius: 2px;
-    padding: 16px 14px 10px;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.2);
+    border-radius: 12px;
+    padding: 16px 14px 10px 18px;
+    background: linear-gradient(170deg, rgba(30,34,46,0.92), rgba(20,23,32,0.92));
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.09);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.35);
     --peek: 0%;
-    transform: translateX(calc(var(--peek) * var(--dir, 1))) rotate(-1.2deg);
+    --stripe: #fbbf24;
+    --stripe-glow: transparent;
+    transform: translateX(calc(var(--peek) * var(--dir, 1)));
     transition: transform 0.45s cubic-bezier(0.25, 0.9, 0.3, 1), box-shadow 0.16s;
     min-height: 82px;
-    color: #2b2417;
+    color: #e8ebf4;
   }
-  .postit:nth-child(even) { transform: translateX(calc(var(--peek) * var(--dir, 1))) rotate(1.1deg); }
   /* 위젯이 화면 왼쪽에 있으면 슬라이드 방향 반전 (왼쪽 가장자리에 자연스레 붙음) */
   body { --dir: 1; }
   body.side-left { --dir: -1; }
@@ -69,7 +97,7 @@
   body.side-left .fuse-bar { transform: scaleX(-1); }
   .postit:hover {
     --peek: 0%;
-    transform: translateX(0) rotate(0) translateY(-3px) scale(1.02);
+    transform: translateX(0) translateY(-3px) scale(1.02);
     box-shadow: 0 10px 24px rgba(0,0,0,0.45);
     z-index: 2;
   }
@@ -78,35 +106,59 @@
   .peek-mid  { --peek: 55%; }  /* 3시간 이내 */
   .peek-near { --peek: 26%; }  /* 1시간 이내 */
   /* 30분 이내부터는 --peek: 0 (완전히 나옴) + 폭탄 점화 */
-  /* 테이프 */
+  /* 색상 스트라이프 */
   .postit::before {
     content: '';
-    position: absolute; top: -7px; left: 50%;
-    transform: translateX(-50%) rotate(-2deg);
-    width: 74px; height: 16px;
-    background: rgba(255,255,255,0.45);
-    border-left: 1px dashed rgba(255,255,255,0.6);
-    border-right: 1px dashed rgba(255,255,255,0.6);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    position: absolute; top: 8px; bottom: 8px; left: 0;
+    width: 4.5px; border-radius: 0 4px 4px 0;
+    background: var(--stripe);
+    box-shadow: 0 0 16px var(--stripe-glow);
   }
-  .c-yellow { background: linear-gradient(178deg, #ffef9e 0%, #f7dd6b 100%); }
-  .c-pink   { background: linear-gradient(178deg, #ffd3e4 0%, #f7a8c8 100%); }
-  .c-blue   { background: linear-gradient(178deg, #cde9ff 0%, #9fcef5 100%); }
-  .c-green  { background: linear-gradient(178deg, #d5f5cd 0%, #a8e39a 100%); }
-  .c-purple { background: linear-gradient(178deg, #e9dcff 0%, #ccb2f5 100%); }
-  .c-orange { background: linear-gradient(178deg, #ffe3bd 0%, #f7c078 100%); }
+  .c-yellow { --stripe: #fbbf24; }
+  .c-pink   { --stripe: #f472b6; }
+  .c-blue   { --stripe: #60a5fa; }
+  .c-green  { --stripe: #4ade80; }
+  .c-purple { --stripe: #a78bfa; }
+  .c-orange { --stripe: #fb923c; }
 
   .p-time {
     font-size: 11.5px; font-weight: 800; letter-spacing: 0.2px;
     display: flex; gap: 7px; align-items: baseline; opacity: 0.75;
   }
   .p-remain { font-size: 11px; font-weight: 700; }
-  .p-title { font-size: 15.5px; font-weight: 700; margin-top: 4px; word-break: break-all; line-height: 1.35; }
+  .p-clock { display: inline-flex; align-items: center; gap: 4px; }
+  .p-clock .ic { width: 12px; height: 12px; }
+  .p-title {
+    font-size: 15.5px; font-weight: 700; margin-top: 4px;
+    word-break: keep-all; overflow-wrap: anywhere; line-height: 1.35;
+  }
+  .postit.focus-hero {
+    min-height: 106px; padding: 20px 17px 13px 21px;
+    transform: scale(1.02);
+    border-color: rgba(140,160,255,0.35);
+  }
+  .postit.focus-hero .p-time { font-size: 12.5px; }
+  .postit.focus-hero .p-remain { font-size: 12px; }
+  .postit.focus-hero .p-title { font-size: 19px; line-height: 1.4; margin-top: 7px; }
 
-  .p-actions { display: none; gap: 6px; margin-top: 9px; }
+  .focus-more {
+    display: none; align-self: flex-end;
+    white-space: nowrap;
+    border: 1px solid rgba(140,160,255,0.3);
+    border-radius: 10px; padding: 6px 13px;
+    background: rgba(16,19,28,0.85); color: #cdd7f5;
+    box-shadow: 0 5px 14px rgba(0,0,0,0.28);
+    font-family: inherit; font-size: 12px; font-weight: 800;
+    cursor: pointer;
+  }
+  .focus-more:hover { border-color: rgba(196,181,253,0.9); color: #fff; }
+  body.side-left .focus-more { align-self: flex-start; }
+
+  .p-actions { display: none; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
   .postit:hover .p-actions { display: flex; }
   .p-actions button {
-    border: none; border-radius: 7px; padding: 5px 11px;
+    border: none; border-radius: 7px; padding: 5px 9px;
+    white-space: nowrap;
     font-size: 12px; cursor: pointer; font-weight: 700; font-family: inherit;
     background: rgba(20, 18, 10, 0.82); color: #fff;
     transition: background 0.1s;
@@ -114,102 +166,119 @@
   .p-actions button:hover { background: #000; }
   .p-actions .b-done { background: #15803d; }
   .p-actions .b-done:hover { background: #166534; }
+  .p-actions .b-delete { color: #c5cbd9; background: rgba(28,30,39,0.82); }
+  .p-actions .b-delete:hover { color: #fecaca; background: #7f1d1d; }
+  .p-actions .ic { width: 12px; height: 12px; margin-right: 3px; }
 
   /* ===== 도화선 ===== */
   .fuse-bar {
     display: none; position: relative;
     height: 4px; border-radius: 2px;
-    background: rgba(0,0,0,0.14); margin-top: 9px;
+    background: rgba(255,255,255,0.10); margin-top: 9px;
   }
   .fuse-fill {
     height: 100%; border-radius: 2px;
     background: linear-gradient(90deg, #f59e0b, #ef4444);
+    box-shadow: 0 0 8px rgba(239,68,68,0.7);
   }
   .fuse-spark {
-    position: absolute; top: -7px; margin-left: -8px;
-    font-size: 11px; animation: sparkle 0.3s infinite alternate;
+    position: absolute; top: -2px; margin-left: -4px;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #ffd08a;
+    box-shadow: 0 0 10px #f97316;
+    animation: sparkle 0.3s infinite alternate;
   }
   @keyframes sparkle {
-    from { transform: scale(0.7) rotate(-20deg); opacity: 0.65; }
-    to { transform: scale(1.35) rotate(20deg); opacity: 1; }
+    from { transform: scale(0.7); opacity: 0.65; }
+    to { transform: scale(1.35); opacity: 1; }
   }
 
   /* ===== 폭탄 ===== */
   .bomb {
     position: absolute; top: -10px; right: -5px;
-    font-size: 21px; display: none;
+    width: 21px; height: 21px; display: none;
+    color: var(--stripe, #e8ebf4);
     filter: drop-shadow(0 2px 3px rgba(0,0,0,0.4));
   }
   .boom-icon {
     display: none; position: absolute; top: -20px; right: -9px;
-    font-size: 38px; animation: boom 0.55s infinite alternate;
+    width: 38px; height: 38px; color: #f97316;
+    animation: boom 0.55s infinite alternate;
     filter: drop-shadow(0 0 10px rgba(255,120,0,0.8));
   }
   @keyframes boom { from { transform: scale(0.88); } to { transform: scale(1.28); } }
 
-  .stage-burning .bomb { display: block; font-size: 25px; }
+  .stage-burning .bomb { display: block; width: 25px; height: 25px; }
   .stage-burning .fuse-bar { display: block; }
   .stage-burning .fuse-spark { display: block; }
 
-  .stage-critical .bomb { display: block; font-size: 29px; }
+  .stage-critical .bomb { display: block; width: 29px; height: 29px; }
   .stage-critical .fuse-bar { display: block; }
   .stage-critical .fuse-spark { display: block; }
-  .stage-critical { animation: wobble 1.1s infinite; }
-  @keyframes wobble { 0%,100% { transform: rotate(-1.6deg); } 50% { transform: rotate(1.6deg); } }
 
-  .stage-panic .bomb { display: block; font-size: 33px; }
+  .stage-panic .bomb { display: block; width: 33px; height: 33px; }
   .stage-panic .fuse-bar { display: block; }
   .stage-panic .fuse-spark { display: block; animation-duration: 0.13s; }
   .stage-panic {
     animation: shake 0.22s infinite;
-    outline: 2px solid #ef4444;
-    box-shadow: 0 0 22px rgba(239,68,68,0.55);
   }
   @keyframes shake {
-    0%,100% { transform: translate(0,0) rotate(-1deg); }
-    25% { transform: translate(-3px,1px) rotate(1.2deg); }
-    50% { transform: translate(3px,-1px) rotate(-1.6deg); }
-    75% { transform: translate(-2px,-2px) rotate(1.6deg); }
+    0%,100% { transform: translate(0,0); }
+    25% { transform: translate(-3px,1px); }
+    50% { transform: translate(3px,-1px); }
+    75% { transform: translate(-2px,-2px); }
   }
 
-  .stage-boom {
-    background: linear-gradient(178deg, #3d342c, #2b241e) !important;
-    outline: 2px solid #f97316;
-    color: #ffd9c4;
-  }
-  .stage-boom::before { background: rgba(255,255,255,0.12); }
   .stage-boom .boom-icon { display: block; }
-  .stage-boom .p-time { opacity: 0.95; }
 
   /* ===== 상점 테마 ===== */
-  /* 네온 */
-  body.theme-neon .c-yellow { background: linear-gradient(178deg, #fffb6b, #ffe600); }
-  body.theme-neon .c-pink   { background: linear-gradient(178deg, #ff8fc8, #ff4da6); }
-  body.theme-neon .c-blue   { background: linear-gradient(178deg, #7fd4ff, #2eb0ff); }
-  body.theme-neon .c-green  { background: linear-gradient(178deg, #8dff9e, #3bf05e); }
-  body.theme-neon .c-purple { background: linear-gradient(178deg, #d3a6ff, #a95dff); }
-  body.theme-neon .c-orange { background: linear-gradient(178deg, #ffc271, #ff9124); }
-  body.theme-neon .postit { box-shadow: 0 4px 14px rgba(0,0,0,0.4), 0 0 18px rgba(255,255,255,0.22); }
+  body.theme-neon .postit {
+    border-color: rgba(255,255,255,0.15);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.4), 0 0 16px var(--stripe-glow);
+  }
+  body.theme-neon .c-yellow { --stripe: #ffe600; --stripe-glow: rgba(255,230,0,0.8); }
+  body.theme-neon .c-pink   { --stripe: #ff4da6; --stripe-glow: rgba(255,77,166,0.8); }
+  body.theme-neon .c-blue   { --stripe: #2eb0ff; --stripe-glow: rgba(46,176,255,0.8); }
+  body.theme-neon .c-green  { --stripe: #3bf05e; --stripe-glow: rgba(59,240,94,0.8); }
+  body.theme-neon .c-purple { --stripe: #b66cff; --stripe-glow: rgba(182,108,255,0.8); }
+  body.theme-neon .c-orange { --stripe: #ff9124; --stripe-glow: rgba(255,145,36,0.8); }
 
-  /* 크라프트 (종이 질감 톤) */
-  body.theme-kraft .postit { color: #3d2f1e; }
-  body.theme-kraft .c-yellow { background: linear-gradient(178deg, #e8d5a8, #d9bf85); }
-  body.theme-kraft .c-pink   { background: linear-gradient(178deg, #e3c3b4, #d4a48f); }
-  body.theme-kraft .c-blue   { background: linear-gradient(178deg, #c9d3cf, #aec0ba); }
-  body.theme-kraft .c-green  { background: linear-gradient(178deg, #d3d8ae, #bcc488); }
-  body.theme-kraft .c-purple { background: linear-gradient(178deg, #d8c8c2, #c0a9a4); }
-  body.theme-kraft .c-orange { background: linear-gradient(178deg, #e5c9a0, #d3ad72); }
+  body.theme-kraft .postit {
+    background: linear-gradient(170deg, rgba(46,38,30,0.94), rgba(30,25,21,0.94));
+    border-color: rgba(232,213,168,0.15);
+    color: #f0e5d4;
+  }
+  body.theme-kraft .c-yellow { --stripe: #c9aa68; }
+  body.theme-kraft .c-pink   { --stripe: #bd8d83; }
+  body.theme-kraft .c-blue   { --stripe: #8da9a4; }
+  body.theme-kraft .c-green  { --stripe: #9da56f; }
+  body.theme-kraft .c-purple { --stripe: #a58c98; }
+  body.theme-kraft .c-orange { --stripe: #bf8d52; }
 
-  /* 미드나잇 (다크 + 색상 스트라이프) */
-  body.theme-midnight .postit { color: #e6e9f2; }
-  body.theme-midnight .postit::before { background: rgba(255,255,255,0.14); }
-  body.theme-midnight .fuse-bar { background: rgba(255,255,255,0.16); }
-  body.theme-midnight .c-yellow { background: linear-gradient(178deg, #33301b, #262310); border-left: 5px solid #fbbf24; }
-  body.theme-midnight .c-pink   { background: linear-gradient(178deg, #33202b, #261620); border-left: 5px solid #f472b6; }
-  body.theme-midnight .c-blue   { background: linear-gradient(178deg, #1e2a3d, #141f2e); border-left: 5px solid #60a5fa; }
-  body.theme-midnight .c-green  { background: linear-gradient(178deg, #1e3324, #142619); border-left: 5px solid #4ade80; }
-  body.theme-midnight .c-purple { background: linear-gradient(178deg, #2a2238, #1e182a); border-left: 5px solid #a78bfa; }
-  body.theme-midnight .c-orange { background: linear-gradient(178deg, #33281b, #262010); border-left: 5px solid #fb923c; }
+  body.theme-midnight .postit {
+    background: linear-gradient(170deg, rgba(12,13,18,0.96), rgba(8,9,13,0.96));
+    border-color: rgba(140,160,255,0.12);
+    color: #e6e9f2;
+  }
+  body.theme-midnight .fuse-bar { background: rgba(255,255,255,0.10); }
+
+  body .postit.focus-hero { border-color: rgba(140,160,255,0.35); }
+  body .postit.stage-burning,
+  body .postit.stage-critical,
+  body .postit.stage-panic {
+    border-color: rgba(248,113,113,0.55);
+    box-shadow: 0 0 18px rgba(239,68,68,0.28);
+  }
+  .stage-burning .p-time,
+  .stage-critical .p-time,
+  .stage-panic .p-time { color: #f6a6a6; opacity: 1; }
+  body .postit.stage-boom {
+    background: linear-gradient(170deg, rgba(43,29,25,0.96), rgba(18,18,24,0.96)) !important;
+    border-color: rgba(249,115,22,0.68);
+    box-shadow: 0 0 22px rgba(249,115,22,0.36);
+    color: #ffd9c4;
+  }
+  body .postit.stage-boom .p-time { color: #ffc4a3; opacity: 0.95; }
 
   .empty-hint {
     text-align: center; color: #c9cfdd;
@@ -236,39 +305,101 @@
   .level-character .fallback {
     display: none; align-items: center; justify-content: center;
     min-width: 54px; height: 42px; padding: 0 14px;
-    border-radius: 999px; background: rgba(13, 15, 20, 0.88);
-    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px; background: rgba(16,19,28,0.85);
+    border: 1px solid rgba(140,160,255,0.22);
     box-shadow: 0 8px 18px rgba(0,0,0,0.28);
-    font-size: 24px;
   }
+  .level-character .fallback .egg { width: 26px; height: 34px; }
   .level-character.fallback-mode img { display: none; }
   .level-character.fallback-mode .fallback { display: flex; }
 </style>
 </head>
 <body>
+  <svg style="display:none" aria-hidden="true" focusable="false">
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path fill="currentColor" d="M13.2 2 4.8 13.2h6.1L9.8 22l9.4-12.3h-6.1z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M5 4 2.8 6.2M19 4l2.2 2.2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.2 4.2L19 6.5"/></symbol>
+    <symbol id="i-flame" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4.2 0 7-2.9 7-7.1 0-3.4-1.9-6.4-5.1-9.2.1 2.4-.8 4.1-2.2 5.4.2-3.3-1.5-6.1-4.2-8.1.2 4.8-3.7 7.4-3.7 11.9C3.8 19.1 6.9 22 12 22Z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3m3 0-1 14H7L6 7m4 4v6m4-6v6"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 20 4.2-1 10.6-10.6-3.2-3.2L5 15.8 4 20Zm10-13.2 3.2 3.2M4 20h5"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 8h7M9 12h7M9 16h7"/><circle cx="7" cy="8" r=".7" fill="currentColor" stroke="none"/><circle cx="7" cy="12" r=".7" fill="currentColor" stroke="none"/><circle cx="7" cy="16" r=".7" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-bomb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="14" r="7" fill="currentColor" stroke="none"/><path d="m15 8.5 2-2 2 1.5 1-2"/><circle cx="21" cy="4" r="1.3" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-burst" viewBox="0 0 24 24"><path fill="currentColor" d="m12 2 2.3 5.2 5.4-2.9-2.9 5.4L22 12l-5.2 2.3 2.9 5.4-5.4-2.9L12 22l-2.3-5.2-5.4 2.9 2.9-5.4L2 12l5.2-2.3-2.9-5.4 5.4 2.9z"/></symbol>
+    <symbol id="i-trophy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v4c0 4-1.8 6-4 6s-4-2-4-6V4Zm0 2H4v2c0 2.2 1.5 4 4 4m8-6h4v2c0 2.2-1.5 4-4 4m-4 2v4m-4 2h8"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9 7 7m10 10 2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10 13.8 4-3.6M8.5 16.5l-1 1a4 4 0 0 1-5.7-5.7l3-3a4 4 0 0 1 5.7 0M15.5 7.5l1-1a4 4 0 0 1 5.7 5.7l-3 3a4 4 0 0 1-5.7 0"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.4 2.5 3.6 5.5 3.6 9S14.4 18.5 12 21c-2.4-2.5-3.6-5.5-3.6-9S9.6 5.5 12 3Z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  </svg>
   <div class="topbar interactive">
     <div class="pill grip" id="grip" title="잡고 드래그하면 위젯을 옮길 수 있어요">⠿</div>
-    <div class="pill pts">⚡ <span id="ptLabel">0</span></div>
-    <button class="pill" id="btnOpen">📝 투두리스트</button>
-    <button class="pill quit" id="btnQuit" title="MaxAlert 강제종료">✕</button>
+    <div class="pill pts"><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg><span id="ptLabel">0</span>P</div>
+    <button class="pill focus-toggle interactive" id="btnFocus" aria-pressed="false" title="최우선 할 일만 크게 보기"><svg class="ic" aria-hidden="true"><use href="#i-target"/></svg>집중</button>
+    <button class="pill" id="btnOpen"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg>투두리스트</button>
+    <button class="pill quit" id="btnQuit" title="MaxAlert 강제종료" aria-label="MaxAlert 강제종료"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>
   </div>
-  <div id="stack"></div>
-  <div class="empty-hint" id="emptyHint">오늘의 할 일이 없어요.<br>📝 버튼으로 추가하세요!</div>
+  <div id="stack">
+    <button class="focus-more interactive" id="focusMore" type="button"></button>
+  </div>
+  <div class="empty-hint" id="emptyHint">오늘의 할 일이 없어요.<br>투두리스트 버튼으로 추가하세요</div>
   <div class="level-character-row">
     <button class="level-character interactive" id="levelCharacter" style="display:none">
       <img id="levelCharacterImg" alt="">
-      <span class="fallback" id="levelCharacterFallback">🥚</span>
+      <span class="fallback" id="levelCharacterFallback"><span class="egg" aria-hidden="true"></span></span>
     </button>
   </div>
 
+<script src="api-tauri.js"></script>
+
 <script>
+  const isMini = /[?&]mini=1/.test(location.search)
+  if (isMini) {
+    document.body.classList.add('mini')
+    document.querySelector('.topbar').style.display = 'none'
+  }
   let state = { todos: [], profile: null }
   let currentLevelStage = ''
+  let focusMode = isMini
+  let focusTouched = isMini
+  let expanded = false
+  let collapseTimer = null
+  const collapseDelay = 850
+  const btnFocus = document.getElementById('btnFocus')
+  const focusMore = document.getElementById('focusMore')
 
-  window.api.onTodos(data => { state = data; render() })
-  window.api.listTodos().then(data => { state = data; render() })
+  function applyTodos(data) {
+    if (!data) return
+    state = data
+    if (!focusTouched && typeof data.focus === 'boolean') focusMode = data.focus
+    if (!focusMode) expanded = false
+    state.focus = focusMode
+    render()
+  }
+
+  window.api.onTodos(applyTodos)
+  window.api.listTodos().then(applyTodos)
+  window.api.getSettings().then(settings => {
+    if (!focusTouched && settings && typeof settings.postitFocus === 'boolean') {
+      focusMode = settings.postitFocus
+      if (!focusMode) expanded = false
+      render()
+    }
+  }).catch(() => {})
   setInterval(render, 1000)
 
+  btnFocus.addEventListener('click', () => {
+    focusTouched = true
+    focusMode = !focusMode
+    state.focus = focusMode
+    if (!focusMode) {
+      expanded = false
+      clearTimeout(collapseTimer)
+    }
+    render()
+    Promise.resolve(window.api.setSettings({ postitFocus: focusMode })).catch(() => {})
+  })
+  focusMore.addEventListener('click', () => setExpanded(true))
   document.getElementById('btnOpen').addEventListener('click', () => window.api.openDashboard())
   document.getElementById('btnQuit').addEventListener('click', () => window.api.quitApp())
   document.getElementById('levelCharacter').addEventListener('click', () => window.api.openDashboard())
@@ -318,7 +449,7 @@
     const r = t.dueAt - now
     if (r <= 0) {
       const over = Math.floor(-r / 60000)
-      return over < 1 ? '💥 지금!' : `💥 ${over}분 지남`
+      return over < 1 ? '지금!' : `${over}분 지남`
     }
     const min = Math.floor(r / 60000)
     if (min >= 60) return `${Math.floor(min/60)}시간 ${min%60}분 남음`
@@ -333,30 +464,36 @@
     const div = document.createElement('div')
     div.dataset.id = t.id
     div.innerHTML = `
-      <div class="bomb">💣</div>
-      <div class="boom-icon">💥</div>
+      <svg class="bomb ic" aria-hidden="true"><use href="#i-bomb"/></svg>
+      <svg class="boom-icon ic" aria-hidden="true"><use href="#i-burst"/></svg>
       <div class="p-time">
-        <span class="p-clock"></span>
+        <span class="p-clock"><svg class="ic p-clock-icon" aria-hidden="true"><use href="#i-clock"/></svg><span class="p-clock-label"></span></span>
         <span class="p-remain"></span>
       </div>
       <div class="p-title"></div>
       <div class="fuse-bar">
         <div class="fuse-fill"></div>
-        <span class="fuse-spark">✨</span>
+        <span class="fuse-spark"></span>
       </div>
       <div class="p-actions">
-        <button class="b-done" data-act="done">✔ 완료 +10⚡</button>
-        <button data-act="postpone">⏳ +10분</button>
+        <button class="b-done" data-act="done"><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>완료 +10P</button>
+        <button data-act="postpone">+10분</button>
+        <button data-act="nextday">다음 평일</button>
+        <button class="b-delete" data-act="delete">삭제</button>
       </div>`
     div.querySelector('[data-act=done]').addEventListener('click', () => window.api.toggleTodo(t.id))
     div.querySelector('[data-act=postpone]').addEventListener('click', () => window.api.postponeTodo(t.id, 10))
+    div.querySelector('[data-act=nextday]').addEventListener('click', () => window.api.postponeTodoToNextWeekday(t.id))
+    div.querySelector('[data-act=delete]').addEventListener('click', () => window.api.deleteTodo(t.id))
     return div
   }
 
-  function updatePostit(el, t, now) {
-    const cls = `postit interactive c-${t.color} ${stageOf(t, now)} ${peekOf(t, now)}`
+  function updatePostit(el, t, now, hero) {
+    const peek = hero ? '' : peekOf(t, now)
+    const cls = `postit interactive c-${t.color} ${stageOf(t, now)} ${peek} ${hero ? 'focus-hero' : ''}`.trim()
     if (el.className !== cls) el.className = cls
-    el.querySelector('.p-clock').textContent = t.dueAt ? '⏰ ' + fmtTime(t.dueAt) : '📌 종일'
+    el.querySelector('.p-clock-icon').style.display = t.dueAt ? '' : 'none'
+    el.querySelector('.p-clock-label').textContent = t.dueAt ? fmtTime(t.dueAt) : '종일'
     el.querySelector('.p-remain').textContent = fmtRemain(t, now)
     el.querySelector('.p-title').textContent = t.title
     // 도화선: 폭탄이 달리는 마지막 30분을 잔여 비율로 표시
@@ -371,39 +508,73 @@
       document.getElementById('ptLabel').textContent = state.profile.total.toLocaleString()
       updateLevelCharacter(state.profile.level)
     }
-    const bodyCls = 'theme-' + (state.theme || 'classic') + ' side-' + (state.side || 'right')
+    const bodyCls = (isMini ? 'mini ' : '') + 'theme-' + (state.theme || 'classic') + ' side-' + (state.side || 'right')
     if (document.body.className !== bodyCls) document.body.className = bodyCls
     const stack = document.getElementById('stack')
     const visible = state.todos.filter(t => !t.done)
-    document.getElementById('emptyHint').style.display = visible.length ? 'none' : 'block'
+    if (isMini) document.querySelector('.topbar').style.display = visible.length ? 'flex' : 'none'
+    document.getElementById('emptyHint').style.display = isMini || visible.length ? 'none' : 'block'
+    btnFocus.classList.toggle('is-on', focusMode)
+    btnFocus.setAttribute('aria-pressed', focusMode ? 'true' : 'false')
 
-    const order = visible.map(t => t.id).join(',')
+    const collapsed = focusMode && !expanded
+    const rendered = collapsed ? visible.slice(0, 1) : visible
+    const hiddenCount = collapsed ? Math.max(0, visible.length - 1) : 0
+    focusMore.textContent = `+${hiddenCount}건 대기`
+    focusMore.style.display = hiddenCount ? 'block' : 'none'
+
+    const modeKey = focusMode ? (expanded ? 'focus-expanded' : 'focus-collapsed') : 'normal'
+    const order = modeKey + ':' + rendered.map(t => t.id).join(',')
     if (order !== lastOrder) {
       // 목록 구성이 바뀐 경우에만 재배치 (기존 요소는 재사용)
       const byId = {}
-      for (const el of stack.children) byId[el.dataset.id] = el
+      for (const el of stack.children) {
+        if (el.dataset.id) byId[el.dataset.id] = el
+      }
       stack.textContent = ''
-      for (const t of visible) stack.appendChild(byId[t.id] || makePostit(t))
+      for (const t of rendered) stack.appendChild(byId[t.id] || makePostit(t))
+      stack.appendChild(focusMore)
       lastOrder = order
     }
     for (const el of stack.children) {
-      const t = visible.find(x => x.id === el.dataset.id)
-      if (t) updatePostit(el, t, now)
+      if (!el.dataset.id) continue
+      const t = rendered.find(x => x.id === el.dataset.id)
+      if (t) updatePostit(el, t, now, collapsed && t === rendered[0])
     }
+  }
+
+  function setExpanded(next) {
+    next = !!next && focusMode
+    if (expanded === next) return
+    expanded = next
+    render()
+  }
+
+  function noteCursorActivity(onInteractive, onExpandTrigger, inside) {
+    if (!focusMode) return
+    clearTimeout(collapseTimer)
+    // 확장은 +N 배지 위에서만 발동 — hero 에 커서를 올려도 크기를 유지해
+    // 완료 등 액션을 그 자리에서 할 수 있게 한다 (조준 중 타깃 축소 금지).
+    if (onExpandTrigger) {
+      setExpanded(true)
+      return
+    }
+    // 펼친 상태는 커서가 위젯 안에 있는 한 유지 — 배지가 사라진 자리가 빈틈이어도
+    // 접힘/펼침 진동이 생기지 않는다. 창을 벗어나면 850ms 후 접는다.
+    if (expanded && (onInteractive || inside)) return
+    if (expanded) collapseTimer = setTimeout(() => setExpanded(false), collapseDelay)
   }
 
   function updateLevelCharacter(level) {
     const btn = document.getElementById('levelCharacter')
     if (!level) { btn.style.display = 'none'; return }
     const img = document.getElementById('levelCharacterImg')
-    const fallback = document.getElementById('levelCharacterFallback')
     btn.style.display = ''
     btn.title = `Lv.${level.n} ${level.title}`
-    fallback.textContent = level.icon
     if (level.stage !== currentLevelStage) {
       currentLevelStage = level.stage || ''
       btn.classList.remove('fallback-mode')
-      if (currentLevelStage) img.src = `../assets/level/${currentLevelStage}.png`
+      if (currentLevelStage) img.src = `assets/level/${currentLevelStage}.png`
       else btn.classList.add('fallback-mode')
     }
   }
@@ -417,12 +588,17 @@
   document.addEventListener('mousemove', e => {
     if (dragging) return // 드래그 중에는 클릭 통과 전환 금지
     const onInteractive = !!e.target.closest('.interactive')
+    noteCursorActivity(onInteractive, !!e.target.closest('.focus-more'), true)
     if (onInteractive && through) { through = false; window.api.setMouseThrough(false) }
     else if (!onInteractive && !through) { through = true; window.api.setMouseThrough(true) }
   })
   document.addEventListener('mouseleave', () => {
+    noteCursorActivity(false)
     if (!through) { through = true; window.api.setMouseThrough(true) }
   })
+  if (typeof window.api.onPostitCursor === 'function') {
+    window.api.onPostitCursor(cursor => noteCursorActivity(!!cursor.interactive, !!cursor.expandTrigger, cursor.x >= 0 && cursor.y >= 0))
+  }
 </script>
 </body>
 </html>

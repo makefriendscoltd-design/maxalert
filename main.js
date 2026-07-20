@@ -50,7 +50,7 @@ const BADGES = [
   { id: 'centurion', name: '백전노장', icon: '⚔️', desc: '누적 100개 완료', test: c => c.stats.totalDone >= 100 }
 ]
 
-// 포인트 상점: 포스트잇 테마 (⚡ 가격)
+// 포인트 상점: 포스트잇 테마
 const THEME_PRICES = { classic: 0, neon: 150, kraft: 200, midnight: 300 }
 
 function addPoints(delta, reason) {
@@ -83,7 +83,7 @@ function checkBadges() {
   for (const b of BADGES) {
     if (!ownBadge(b.id) && b.test(ctx)) {
       store.data.badges.push({ id: b.id, at: Date.now() })
-      addPoints(25, `🏅 뱃지 획득: ${b.name}`)
+      addPoints(25, `뱃지 획득: ${b.name}`)
     }
   }
 }
@@ -117,6 +117,28 @@ function dateStrOf(d) {
 }
 function todayStr() { return dateStrOf(new Date()) }
 function tomorrowStr() { return dateStrOf(new Date(Date.now() + 86400000)) }
+function nextWeekdayAfter(dateStr) {
+  const [year, month, day] = String(dateStr).split('-').map(Number)
+  const d = new Date(year, month - 1, day)
+  if (!Number.isFinite(d.getTime())) return null
+  do d.setDate(d.getDate() + 1)
+  while (d.getDay() === 0 || d.getDay() === 6)
+  return dateStrOf(d)
+}
+function sameLocalTimeOnDate(ms, dateStr) {
+  const src = new Date(ms)
+  const [year, month, day] = String(dateStr).split('-').map(Number)
+  const next = new Date(
+    year,
+    month - 1,
+    day,
+    src.getHours(),
+    src.getMinutes(),
+    src.getSeconds(),
+    0
+  )
+  return Number.isFinite(next.getTime()) ? next.getTime() : null
+}
 
 // ---------- 앱 시작 ----------
 const gotLock = app.requestSingleInstanceLock()
@@ -398,7 +420,7 @@ function maybeReward() {
   const yesterday = dateStrOf(new Date(Date.now() - 86400000))
   s.count = (s.lastDate === yesterday) ? s.count + 1 : 1
   s.lastDate = todayStr()
-  addPoints(50, '🎉 오늘의 할 일 전체 완료 보너스')
+  addPoints(50, '오늘의 할 일 전체 완료 보너스')
   checkBadges()
   store.save()
   const li = levelInfo(store.data.points.total)
@@ -573,7 +595,7 @@ async function buildDailyReport() {
   const header = name ? `${name} | ${today} 업무 보고` : `${today} 업무 보고`
   const entries = [...done.entries()].sort((a, b) => (a[1] || 0) - (b[1] || 0))
   const L = []
-  L.push(`## 📋 ${header}`)
+  L.push(`## ${header}`)
   L.push('')
   L.push(`완료 **${entries.length}**건`)
   L.push('')
@@ -604,9 +626,9 @@ function registerIpc() {
     s.unlockedThemes = s.unlockedThemes || ['classic']
     if (!s.unlockedThemes.includes(id)) {
       if (store.data.points.total < cost) {
-        return { ok: false, error: `포인트 부족 (⚡${cost} 필요)` }
+        return { ok: false, error: `포인트 부족 (${cost}P 필요)` }
       }
-      addPoints(-cost, `🛍️ 테마 구입: ${id}`)
+      addPoints(-cost, `테마 구입: ${id}`)
       s.unlockedThemes.push(id)
     }
     s.postitTheme = id // 구입 즉시 적용
@@ -714,9 +736,30 @@ function registerIpc() {
     t.dueAt = base + min * 60000
     t.postpones = (t.postpones || 0) + 1
     delete t.ackDue
-    addPoints(-3, `⏳ 미루기: ${t.title}`)
+    addPoints(-3, `미루기: ${t.title}`)
     store.save()
     if (sirenTodoId === id && !sirenEligible(t, Date.now())) closeSiren()
+    pushTodos()
+    return t
+  })
+
+  ipcMain.handle('todos:postponeNextWeekday', (_e, id) => {
+    const t = store.find(id)
+    if (!t || t.done) return t || null
+    const now = Date.now()
+    const fromDate = t.date || todayStr()
+    const targetDate =
+      nextWeekdayAfter(fromDate) ||
+      nextWeekdayAfter(todayStr()) ||
+      tomorrowStr()
+    t.date = targetDate
+    t.dueAt = t.dueAt ? sameLocalTimeOnDate(t.dueAt, targetDate) : null
+    t.postpones = (t.postpones || 0) + 1
+    delete t.ackDue
+    t.deferredFrom = fromDate
+    t.deferredAt = now
+    store.save()
+    if (sirenTodoId === id) closeSiren()
     pushTodos()
     return t
   })

@@ -1,0 +1,37 @@
+[package]
+name = "maxalert"
+version = "0.2.2"
+description = "MaxAlert — 포스트잇 + 코드블루 사이렌 일정 알림 앱"
+authors = ["makefriends"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "maxalert_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-autostart = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# rustls-tls-native-roots: 사내 CA 가 OS 신뢰 저장소에만 있는 윈도우에서도 TLS 성립
+# system-proxy: 윈도우 시스템 프록시 환경에서 업데이트/노션 요청이 죽지 않게
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots", "system-proxy"] }
+tokio = { version = "1", features = ["time", "rt", "macros"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# 윈도우 사일런트 자동업데이트 — latest.yml sha512(base64) 검증용
+sha2 = "0.10"
+base64 = "0.22"
+
+[[bin]]
+name = "maxalert"
+path = "src/main.rs"
+
+[profile.dev]
+incremental = true

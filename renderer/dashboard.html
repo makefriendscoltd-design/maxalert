@@ -7,10 +7,10 @@
   :root {
     color-scheme: dark;
     --bg: #0d0f14;
-    --surface: #14171f;
-    --card: #1a1e29;
-    --card-hover: #1f2431;
-    --border: rgba(255,255,255,0.07);
+    --surface: rgba(20,23,32,0.96);
+    --card: rgba(30,34,46,0.90);
+    --card-hover: rgba(36,41,55,0.94);
+    --border: rgba(140,160,255,0.16);
     --text: #e9ecf4;
     --muted: #8a93a8;
     --faint: #5b6274;
@@ -20,6 +20,17 @@
     --green: #34d399;
     --red: #f87171;
     --radius: 14px;
+  }
+  .ic {
+    width: 1em; height: 1em; display: inline-block; flex: 0 0 auto;
+    vertical-align: -0.14em; color: inherit;
+  }
+  .egg {
+    display: inline-block; width: 28px; height: 35px;
+    border-radius: 50% 50% 46% 46%;
+    background: linear-gradient(160deg, #fff7e0, #f0d896);
+    border: 1px solid rgba(255,255,255,0.7);
+    box-shadow: inset -4px -5px 8px rgba(157,117,43,0.12), 0 5px 10px rgba(0,0,0,0.24);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -44,9 +55,11 @@
   .chips { display: flex; gap: 8px; }
   .chip {
     display: flex; align-items: center; gap: 5px;
+    white-space: nowrap;
     background: var(--card); border: 1px solid var(--border);
     border-radius: 999px; padding: 6px 13px;
     font-size: 12.5px; font-weight: 700;
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   }
   .chip .pt { color: var(--amber); }
   .chip .fire { color: #fb923c; }
@@ -87,6 +100,7 @@
   .stat {
     background: var(--card); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 12px 14px;
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   }
   .stat b { font-size: 20px; font-weight: 800; display: block; }
   .stat span { font-size: 11.5px; color: var(--muted); }
@@ -104,6 +118,7 @@
     background: var(--card); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 14px;
     display: flex; flex-direction: column; gap: 11px;
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   }
   .add-row { display: flex; gap: 8px; }
   input[type=time], input[type=text], input[type=password] {
@@ -143,6 +158,7 @@
     display: flex; align-items: center; gap: 11px;
     position: relative; overflow: hidden;
     transition: background 0.12s;
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   }
   .item:hover { background: var(--card-hover); }
   .item::before {
@@ -163,8 +179,12 @@
   .chk:hover { border-color: var(--green); }
   .chk.on { background: var(--green); border-color: var(--green); color: #0d0f14; font-weight: 900; }
   .i-body { flex: 1; min-width: 0; }
-  .i-title { font-size: 14.5px; font-weight: 600; word-break: break-all; }
+  .i-title {
+    font-size: 14.5px; font-weight: 600;
+    word-break: keep-all; overflow-wrap: anywhere;
+  }
   .i-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .i-meta .ic { width: 12px; height: 12px; margin-right: 3px; }
   .i-meta .urgent { color: var(--red); font-weight: 700; }
   .i-meta .notion-tag {
     color: var(--muted); border: 1px solid var(--border); border-radius: 4px;
@@ -175,7 +195,8 @@
   .i-actions button {
     border: 1px solid var(--border); background: var(--surface);
     color: var(--muted); border-radius: 7px; cursor: pointer;
-    font-size: 11.5px; padding: 5px 9px; font-family: inherit;
+    font-size: 11.5px; padding: 5px 8px; font-family: inherit;
+    white-space: nowrap;
   }
   .i-actions button:hover { color: var(--text); border-color: #3a4157; }
   .empty { text-align: center; color: var(--faint); padding: 34px 0; font-size: 13.5px; line-height: 1.7; }
@@ -196,9 +217,11 @@
     background: var(--card); border: 1px solid var(--border);
     border-radius: 12px; padding: 12px 6px 10px; text-align: center;
     transition: transform 0.12s;
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   }
   .badge:hover { transform: translateY(-2px); }
-  .badge .b-icon { font-size: 24px; }
+  .badge .b-icon { font-size: 24px; color: #cdd7f5; }
+  .badge .b-icon .ic { width: 24px; height: 24px; }
   .badge .b-name { font-size: 11px; font-weight: 700; margin-top: 5px; }
   .badge.locked { opacity: 0.35; }
   .badge.locked .b-icon { filter: grayscale(1); }
@@ -221,6 +244,7 @@
   .shop-card {
     background: var(--card); border: 1px solid var(--border);
     border-radius: 12px; padding: 13px 14px;
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   }
   .shop-card.active { border-color: rgba(99,102,241,0.6); }
   .shop-name { font-weight: 800; font-size: 13.5px; display: flex; justify-content: space-between; align-items: center; }
@@ -238,8 +262,9 @@
 
   /* ===== 라운지 ===== */
   .lounge {
-    background: var(--card); border: 1px dashed rgba(255,255,255,0.15);
+    background: var(--card); border: 1px dashed rgba(140,160,255,0.22);
     border-radius: var(--radius); padding: 16px;
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   }
   .lounge-head { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; }
   .soon { font-size: 10px; font-weight: 800; color: var(--accent2); border: 1px solid rgba(168,85,247,0.4); border-radius: 999px; padding: 2px 8px; }
@@ -263,6 +288,7 @@
   details {
     background: var(--card); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px;
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   }
   summary { cursor: pointer; font-weight: 700; font-size: 13.5px; color: var(--text); }
   summary::marker { color: var(--faint); }
@@ -280,25 +306,45 @@
   .sync-status.err { color: var(--red); }
   .sync-status.ok { color: var(--green); }
   .note { font-size: 11.5px; color: var(--faint); line-height: 1.65; }
+  .note .ic, summary .ic, .lounge-head .ic, #btnReport .ic {
+    width: 14px; height: 14px; margin-right: 5px;
+  }
   input[type=range] { flex: 1; accent-color: var(--accent); }
   input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 </style>
 </head>
 <body>
+  <svg style="display:none" aria-hidden="true" focusable="false">
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path fill="currentColor" d="M13.2 2 4.8 13.2h6.1L9.8 22l9.4-12.3h-6.1z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M5 4 2.8 6.2M19 4l2.2 2.2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.2 4.2L19 6.5"/></symbol>
+    <symbol id="i-flame" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4.2 0 7-2.9 7-7.1 0-3.4-1.9-6.4-5.1-9.2.1 2.4-.8 4.1-2.2 5.4.2-3.3-1.5-6.1-4.2-8.1.2 4.8-3.7 7.4-3.7 11.9C3.8 19.1 6.9 22 12 22Z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3m3 0-1 14H7L6 7m4 4v6m4-6v6"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 20 4.2-1 10.6-10.6-3.2-3.2L5 15.8 4 20Zm10-13.2 3.2 3.2M4 20h5"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 8h7M9 12h7M9 16h7"/><circle cx="7" cy="8" r=".7" fill="currentColor" stroke="none"/><circle cx="7" cy="12" r=".7" fill="currentColor" stroke="none"/><circle cx="7" cy="16" r=".7" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-bomb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="14" r="7" fill="currentColor" stroke="none"/><path d="m15 8.5 2-2 2 1.5 1-2"/><circle cx="21" cy="4" r="1.3" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-burst" viewBox="0 0 24 24"><path fill="currentColor" d="m12 2 2.3 5.2 5.4-2.9-2.9 5.4L22 12l-5.2 2.3 2.9 5.4-5.4-2.9L12 22l-2.3-5.2-5.4 2.9 2.9-5.4L2 12l5.2-2.3-2.9-5.4 5.4 2.9z"/></symbol>
+    <symbol id="i-trophy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v4c0 4-1.8 6-4 6s-4-2-4-6V4Zm0 2H4v2c0 2.2 1.5 4 4 4m8-6h4v2c0 2.2-1.5 4-4 4m-4 2v4m-4 2h8"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9 7 7m10 10 2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10 13.8 4-3.6M8.5 16.5l-1 1a4 4 0 0 1-5.7-5.7l3-3a4 4 0 0 1 5.7 0M15.5 7.5l1-1a4 4 0 0 1 5.7 5.7l-3 3a4 4 0 0 1-5.7 0"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.4 2.5 3.6 5.5 3.6 9S14.4 18.5 12 21c-2.4-2.5-3.6-5.5-3.6-9S9.6 5.5 12 3Z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  </svg>
   <div class="top">
     <div>
-      <div class="brand">Max<em>Alert</em> <span style="font-size:12px">🐥</span> <span id="verLabel" style="font-size:11px; color:var(--muted); font-weight:600"></span></div>
+      <div class="brand">Max<em>Alert</em> <span id="verLabel" style="font-size:11px; color:var(--muted); font-weight:600"></span></div>
       <div class="date" id="dateLabel"></div>
     </div>
     <div class="chips">
-      <div class="chip"><span class="pt">⚡</span><span id="ptLabel">0</span></div>
-      <div class="chip" id="streakChip" style="display:none"><span class="fire">🔥</span><span id="streakLabel"></span></div>
+      <div class="chip"><svg class="ic pt" aria-hidden="true"><use href="#i-bolt"/></svg><span id="ptLabel">0</span>P</div>
+      <div class="chip" id="streakChip" style="display:none"><svg class="ic fire" aria-hidden="true"><use href="#i-flame"/></svg><span id="streakLabel"></span></div>
     </div>
   </div>
 
   <div class="level-card">
     <div class="level-row">
-      <div class="level-icon" id="lvIcon">🥚</div>
+      <div class="level-icon" id="lvIcon"><span class="egg" aria-hidden="true"></span></div>
       <div style="flex:1">
         <div class="level-name" id="lvName">Lv.1 잠꾸러기 알</div>
         <div class="level-sub" id="lvSub"></div>
@@ -309,7 +355,7 @@
 
   <div class="stats">
     <div class="stat"><b id="stToday">0/0</b><span>오늘 완료</span></div>
-    <div class="stat"><b class="plus" id="stTodayPt">+0</b><span>오늘 획득 ⚡</span></div>
+    <div class="stat"><b class="plus" id="stTodayPt">+0</b><span>오늘 획득 P</span></div>
     <div class="stat"><b id="stTotal">0</b><span>누적 완료</span></div>
   </div>
 
@@ -334,14 +380,14 @@
 
   <div class="section-label" style="display:flex; justify-content:space-between; align-items:center;">
     <span>오늘의 할 일</span>
-    <button id="btnReport" style="font-size:12px; padding:5px 10px; cursor:pointer;">📋 보고 복사</button>
+    <button id="btnReport" style="font-size:12px; padding:5px 10px; cursor:pointer;"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg>보고 복사</button>
   </div>
   <div id="list"></div>
 
   <div class="section-label">뱃지 컬렉션</div>
   <div class="badges" id="badgeGrid"></div>
 
-  <div class="section-label">⚡ 포인트 상점 — 포스트잇 테마</div>
+  <div class="section-label">포인트 상점 — 포스트잇 테마</div>
   <div class="shop" id="shopGrid"></div>
   <div class="shop-msg" id="shopMsg"></div>
 
@@ -350,12 +396,12 @@
 
   <div class="section-label">커뮤니티</div>
   <div class="lounge">
-    <div class="lounge-head">🌐 ADHD 라운지 <span class="soon">COMING SOON</span></div>
+    <div class="lounge-head"><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg>ADHD 라운지 <span class="soon">COMING SOON</span></div>
     <div class="profile-card">
-      <div class="pc-avatar" id="pcAvatar">🥚</div>
+      <div class="pc-avatar" id="pcAvatar"><span class="egg" aria-hidden="true"></span></div>
       <div>
         <div class="pc-name" id="pcName">잠꾸러기 알</div>
-        <div class="pc-sub" id="pcSub">⚡ 0 · 뱃지 0개 · 🔥 0일 연속</div>
+        <div class="pc-sub" id="pcSub">0P · 뱃지 0개 · 0일 연속</div>
       </div>
     </div>
     <div class="lounge-note">
@@ -366,7 +412,7 @@
 
   <div class="section-label" style="margin-top:26px">연동 · 설정</div>
   <details>
-    <summary>🔗 노션 연동</summary>
+    <summary><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg>노션 연동</summary>
     <div class="set-body">
       <div class="set-row">
         <label>API 토큰</label>
@@ -395,7 +441,7 @@
   </details>
 
   <details>
-    <summary>⚙️ 설정</summary>
+    <summary><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg>설정</summary>
     <div class="set-body">
       <div class="set-row">
         <label>부팅 시 자동 시작</label>
@@ -407,17 +453,47 @@
         <span id="volLabel" style="color:var(--muted); font-size:12px; min-width:36px"></span>
       </div>
       <div class="note">
-        ⏰ 시간이 있는 일정은 3분 전부터 전체 화면 사이렌이 울립니다.
-        완료 체크 또는 미루기 전까지 꺼지지 않습니다. 미루기는 ⚡ -3점 😈
+        <svg class="ic" aria-hidden="true"><use href="#i-clock"/></svg>시간이 있는 일정은 3분 전부터 전체 화면 사이렌이 울립니다.
+        완료 체크 또는 미루기 전까지 꺼지지 않습니다. 미루기는 -3P입니다.
       </div>
     </div>
   </details>
+
+<script src="api-tauri.js"></script>
 
 <script>
   let state = { todos: [], streak: null, profile: null }
   let selectedColor = 'yellow'
   let editingId = null
+  let lastRenderSig = ''
   const stageIconState = {}
+  const BADGE_ICONS = {
+    'first-done': 'check',
+    'early-bird': 'clock',
+    'perfect-day': 'trophy',
+    'no-snooze': 'target',
+    'streak-3': 'flame',
+    'streak-7': 'flame',
+    'siren-slayer': 'burst',
+    'centurion': 'trophy'
+  }
+  const LEDGER_PREFIX = /^[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\s]+/u
+
+  function iconMarkup(id, extraClass = '') {
+    return `<svg class="ic ${extraClass}" aria-hidden="true"><use href="#i-${id}"/></svg>`
+  }
+
+  function renderEgg(el) {
+    el.textContent = ''
+    const egg = document.createElement('span')
+    egg.className = 'egg'
+    egg.setAttribute('aria-hidden', 'true')
+    el.appendChild(egg)
+  }
+
+  function stripLedgerPrefix(value) {
+    return String(value || '').replace(LEDGER_PREFIX, '')
+  }
 
   const now = new Date()
   const DAYS = ['일','월','화','수','목','금','토']
@@ -460,9 +536,9 @@
   function metaOf(t) {
     if (!t.dueAt) return '종일'
     const r = t.dueAt - Date.now()
-    const time = '⏰ ' + fmtTime(t.dueAt)
+    const time = iconMarkup('clock') + fmtTime(t.dueAt)
     if (t.done) return time
-    if (r <= 0) return `${time} · <span class="urgent">💥 ${Math.max(1, Math.floor(-r/60000))}분 지남</span>`
+    if (r <= 0) return `${time} · <span class="urgent">${Math.max(1, Math.floor(-r/60000))}분 지남</span>`
     const min = Math.floor(r / 60000)
     const remain = min >= 60 ? `${Math.floor(min/60)}시간 ${min%60}분 남음` : `${min}분 남음`
     return r <= 10*60000 ? `${time} · <span class="urgent">${remain}</span>` : `${time} · ${remain}`
@@ -485,7 +561,7 @@
       const span = lv.next - lv.min
       const pct = Math.min(100, Math.round((p.total - lv.min) / span * 100))
       document.getElementById('lvFill').style.width = pct + '%'
-      document.getElementById('lvSub').textContent = `다음 레벨까지 ⚡ ${(lv.next - p.total).toLocaleString()}`
+      document.getElementById('lvSub').textContent = `다음 레벨까지 ${(lv.next - p.total).toLocaleString()}P`
     } else {
       document.getElementById('lvFill').style.width = '100%'
       document.getElementById('lvSub').textContent = '최고 레벨 달성!'
@@ -506,7 +582,8 @@
       const div = document.createElement('div')
       div.className = 'badge ' + (b.at ? 'owned' : 'locked')
       div.title = b.desc + (b.at ? '' : ' (미획득)')
-      div.innerHTML = `<div class="b-icon">${b.icon}</div><div class="b-name">${b.name}</div>`
+      div.innerHTML = `<div class="b-icon">${iconMarkup(BADGE_ICONS[b.id] || 'trophy')}</div><div class="b-name"></div>`
+      div.querySelector('.b-name').textContent = b.name
       grid.appendChild(div)
     }
 
@@ -514,15 +591,15 @@
     const ledger = document.getElementById('ledger')
     ledger.innerHTML = ''
     if (!p.ledger.length) {
-      ledger.innerHTML = '<div class="empty" style="padding:14px 0">할 일을 완료하면 ⚡ 포인트가 쌓입니다</div>'
+      ledger.innerHTML = '<div class="empty" style="padding:14px 0">할 일을 완료하면 포인트가 쌓입니다</div>'
     }
     for (const e of p.ledger) {
       const row = document.createElement('div')
       row.className = 'ledger-row'
       const d = new Date(e.at)
       const timeStr = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
-      row.innerHTML = `<span class="l-reason"></span><span style="color:var(--faint);font-size:11px;flex-shrink:0">${timeStr}</span><span class="l-delta ${e.delta >= 0 ? 'pos' : 'neg'}">${e.delta >= 0 ? '+' : ''}${e.delta}</span>`
-      row.querySelector('.l-reason').textContent = e.reason
+      row.innerHTML = `<span class="l-reason"></span><span style="color:var(--faint);font-size:11px;flex-shrink:0">${timeStr}</span><span class="l-delta ${e.delta >= 0 ? 'pos' : 'neg'}">${e.delta >= 0 ? '+' : ''}${e.delta}P</span>`
+      row.querySelector('.l-reason').textContent = stripLedgerPrefix(e.reason)
       ledger.appendChild(row)
     }
 
@@ -530,8 +607,42 @@
     updateStageIcon('pcAvatar', lv)
     document.getElementById('pcName').textContent = `Lv.${lv.n} ${lv.title}`
     const badgeCount = p.badges.filter(b => b.at).length
-    document.getElementById('pcSub').textContent =
-      `⚡ ${p.total.toLocaleString()} · 뱃지 ${badgeCount}개 · 🔥 ${p.streak ? p.streak.count : 0}일 연속`
+    document.getElementById('pcSub').innerHTML =
+      `${iconMarkup('bolt')} ${p.total.toLocaleString()}P · 뱃지 ${badgeCount}개 · ${iconMarkup('flame')} ${p.streak ? p.streak.count : 0}일 연속`
+  }
+
+  function updateStageIcon(id, lv) {
+    const el = document.getElementById(id)
+    const nextStage = lv.stage || ''
+    const prev = stageIconState[id] || {}
+    if (prev.stage === nextStage && prev.icon === lv.icon) return
+    stageIconState[id] = { stage: nextStage, icon: lv.icon }
+    el.textContent = ''
+    if (!nextStage) {
+      renderEgg(el)
+      return
+    }
+    const img = document.createElement('img')
+    img.src = `assets/level/${nextStage}.png`
+    img.alt = `Lv.${lv.n} ${lv.title}`
+    img.addEventListener('error', () => {
+      renderEgg(el)
+    }, { once: true })
+    el.appendChild(img)
+  }
+
+  function updateCountdowns() {
+    // 매초 전체 재생성은 카드 트랜지션 재생·hover 리셋으로 깜빡임을 만든다 —
+    // 상태가 그대로면 남은시간 텍스트만 제자리 갱신한다.
+    const byId = new Map(state.todos.map(t => [t.id, t]))
+    for (const div of document.querySelectorAll('#list .item')) {
+      const t = byId.get(div.dataset.id)
+      if (!t) continue
+      const meta = div.querySelector('.i-meta')
+      if (!meta) continue
+      const metaHtml = metaOf(t) + (t.notionPageId ? '<span class="notion-tag">notion</span>' : '')
+      if (meta.dataset.src !== metaHtml) { meta.dataset.src = metaHtml; meta.innerHTML = metaHtml }
+    }
   }
 
   function updateStageIcon(id, lv) {
@@ -556,6 +667,9 @@
 
   function render() {
     if (editingId) return
+    const sig = JSON.stringify(state)
+    if (sig === lastRenderSig) { updateCountdowns(); return }
+    lastRenderSig = sig
     renderProfile()
     const list = document.getElementById('list')
     list.innerHTML = ''
@@ -566,19 +680,24 @@
     for (const t of state.todos) {
       const div = document.createElement('div')
       div.className = `item b-${t.color} ${t.done ? 'done-item' : ''}`
+      div.dataset.id = t.id
+      const metaHtml = metaOf(t) + (t.notionPageId ? '<span class="notion-tag">notion</span>' : '')
       div.innerHTML = `
-        <div class="chk ${t.done ? 'on' : ''}">${t.done ? '✔' : ''}</div>
+        <div class="chk ${t.done ? 'on' : ''}">${t.done ? iconMarkup('check') : ''}</div>
         <div class="i-body">
           <div class="i-title"></div>
-          <div class="i-meta">${metaOf(t)}${t.notionPageId ? '<span class="notion-tag">notion</span>' : ''}</div>
+          <div class="i-meta">${metaHtml}</div>
         </div>
         <div class="i-actions">
-          ${t.done ? '' : '<button data-act="pp">+10분</button><button data-act="edit">✏️</button>'}
-          <button data-act="del">🗑️</button>
+          ${t.done ? '' : `<button data-act="pp">+10분</button><button data-act="nextday" title="주말은 건너뛰고 다음 평일로 이동">다음 평일</button><button data-act="edit" title="수정" aria-label="수정">${iconMarkup('pencil')}</button>`}
+          <button data-act="del" title="삭제" aria-label="삭제">${iconMarkup('trash')}</button>
         </div>`
       div.querySelector('.i-title').textContent = t.title
+      div.querySelector('.i-meta').dataset.src = metaHtml
       div.querySelector('.chk').addEventListener('click', async () => { await window.api.toggleTodo(t.id); refresh() })
       div.querySelector('[data-act=del]').addEventListener('click', async () => { await window.api.deleteTodo(t.id); refresh() })
+      const nextday = div.querySelector('[data-act=nextday]')
+      if (nextday) nextday.addEventListener('click', async () => { await window.api.postponeTodoToNextWeekday(t.id); refresh() })
       const pp = div.querySelector('[data-act=pp]')
       if (pp) pp.addEventListener('click', async () => { await window.api.postponeTodo(t.id, 10); refresh() })
       const ed = div.querySelector('[data-act=edit]')
@@ -589,6 +708,8 @@
 
   function startEdit(div, t) {
     editingId = t.id
+    lastRenderSig = '' // 편집 폼이 DOM 을 바꿨으니 편집 종료 후 첫 render 는 반드시 재생성
+
     const body = div.querySelector('.i-body')
     div.querySelector('.i-actions').style.display = 'none'
     const timeVal = t.dueAt ? fmtTime(t.dueAt) : ''
@@ -638,7 +759,7 @@
         <div class="shop-name"><span>${th.name}</span>${owned ? '<span style="font-size:11px;color:var(--green)">보유</span>' : ''}</div>
         <div class="shop-dots">${th.colors.map(c => `<span style="background:${c}"></span>`).join('')}</div>
         <button class="shop-btn ${isActive ? 'on' : owned ? '' : 'buy'}">
-          ${isActive ? '적용 중' : owned ? '적용하기' : `⚡ ${th.cost} 구입`}
+          ${isActive ? '적용 중' : owned ? '적용하기' : `${th.cost}P 구입`}
         </button>`
       if (!isActive) {
         card.querySelector('.shop-btn').addEventListener('click', async () => {
@@ -650,7 +771,7 @@
             renderShop()
             refresh()
           } else {
-            msg.textContent = '❌ ' + r.error
+            msg.textContent = r.error
           }
         })
       }
@@ -685,23 +806,23 @@
   }
 
   async function loadUsers() {
-    if (!inToken.value.trim()) { syncStatus.className = 'sync-status err'; syncStatus.textContent = '❌ 토큰을 먼저 입력하세요'; return }
+    if (!inToken.value.trim()) { syncStatus.className = 'sync-status err'; syncStatus.textContent = '토큰을 먼저 입력하세요'; return }
     // 토큰이 바뀌었을 수 있으니 먼저 저장
     await window.api.setSettings({ notionToken: inToken.value.trim() })
     btnLoadUsers.disabled = true; btnLoadUsers.textContent = '...'
     const r = await window.api.listNotionUsers()
     btnLoadUsers.disabled = false; btnLoadUsers.textContent = '불러오기'
     if (r.ok) fillAssignee(r.users)
-    else { syncStatus.className = 'sync-status err'; syncStatus.textContent = '❌ ' + r.error }
+    else { syncStatus.className = 'sync-status err'; syncStatus.textContent = r.error }
   }
 
   const btnReport = document.getElementById('btnReport')
   btnReport.addEventListener('click', async () => {
     const r = await window.api.copyReport()
     if (r.ok) {
-      const orig = btnReport.textContent
-      btnReport.textContent = '✅ 복사됨!'
-      setTimeout(() => { btnReport.textContent = orig }, 1500)
+      const orig = btnReport.innerHTML
+      btnReport.textContent = '복사됨!'
+      setTimeout(() => { btnReport.innerHTML = orig }, 1500)
     }
   })
 
@@ -739,13 +860,13 @@
     const r = await window.api.syncNotion()
     if (r.ok) {
       syncStatus.className = 'sync-status ok'
-      syncStatus.textContent = `✅ 동기화 완료 — 오늘 일정 ${r.count}건 (신규 ${r.added}건, 제거 ${r.removed || 0}건)`
+      syncStatus.textContent = `동기화 완료 — 오늘 일정 ${r.count}건 (신규 ${r.added}건, 제거 ${r.removed || 0}건)`
       refresh()
       // 담당자 목록이 아직 비어있으면 자동으로 불러와 채움
       if (inAssignee.options.length <= 1) loadUsers()
     } else {
       syncStatus.className = 'sync-status err'
-      syncStatus.textContent = '❌ ' + r.error
+      syncStatus.textContent = r.error
     }
   })
 </script>
