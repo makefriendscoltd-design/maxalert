@@ -748,6 +748,18 @@
       syncStatus.textContent = '❌ ' + r.error
     }
   })
+
+  // 60초마다 도는 자동 동기화 결과도 표시 — 실패가 조용히 묻히지 않도록
+  window.api.onNotionStatus(s => {
+    if (s.ok) {
+      syncStatus.className = 'sync-status ok'
+      syncStatus.textContent = '✅ 자동 동기화 완료 — ' + new Date(s.at).toLocaleTimeString('ko-KR')
+      refresh()
+    } else if (s.error && s.error !== '동기화 진행 중') {
+      syncStatus.className = 'sync-status err'
+      syncStatus.textContent = '❌ 자동 동기화 실패 — ' + s.error
+    }
+  })
 </script>
 </body>
 </html>

@@ -9,6 +9,8 @@ const notion = require('./lib/notion')
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
 const SIREN_LEAD_MS = 3 * 60 * 1000 // 일정 3분 전부터 사이렌
+// 이 시간이 넘도록 끝나지 않은 동기화는 멈춘 것으로 보고 잠금을 해제한다
+const SYNC_STUCK_MS = 90 * 1000
 const PRELOAD = path.join(__dirname, 'preload.js')
 
 let store
@@ -20,7 +22,8 @@ let sirenWins = []
 let sirenTodoId = null
 let focusTimer = null
 let tickCount = 0
-let notionBusy = false
+let notionBusyAt = 0 // 동기화 시작 시각(0 = 유휴). 멈춘 동기화를 되살리기 위해 시각으로 보관
+let lastSync = { at: 0, ok: false, error: null }
 let schemaCache = null // { key, schema }
 let quitting = false
 
@@ -149,6 +152,7 @@ function init() {
   registerIpc()
   createTray()
   createPostitWindow()
+  watchDisplays()
   showDashboard()
   setInterval(tick, 1000)
   setInterval(() => syncNotion().catch(() => {}), 60000)
@@ -228,13 +232,52 @@ function showDashboard() {
 }
 
 // ---------- 포스트잇 위젯 ----------
-function createPostitWindow() {
-  const { workArea } = screen.getPrimaryDisplay()
-  const width = 340
+const POSTIT_WIDTH = 340
+
+// 포스트잇이 올라갈 모니터. 저장된 모니터가 분리됐으면 주 모니터로 되돌린다.
+function postitDisplay() {
+  const id = store.data.settings.postitDisplayId
+  return screen.getAllDisplays().find(d => d.id === id) || screen.getPrimaryDisplay()
+}
+
+// 창이 모니터 경계에 걸치면 양쪽 화면에 나뉘어 보인다.
+// 항상 한 모니터의 작업 영역 안에 완전히 들어가도록 좌표를 가둔다.
+function clampToDisplay(display, x, y, width, height) {
+  const wa = display.workArea
+  return {
+    x: Math.round(Math.min(Math.max(x, wa.x), wa.x + wa.width - width)),
+    y: Math.round(Math.min(Math.max(y, wa.y), wa.y + wa.height - height))
+  }
+}
+
+// 대상 모니터 기준으로 크기와 위치를 다시 맞춘다.
+// 모니터마다 작업 영역 높이가 다르므로 높이도 매번 대상 모니터에서 가져와야 한다.
+function placePostit(display) {
+  if (!postitWin || postitWin.isDestroyed()) return
+  const disp = display || postitDisplay()
+  const height = disp.workArea.height
   const saved = store.data.settings.postitPos
+  const x = saved ? saved.x : disp.workArea.x + disp.workArea.width - POSTIT_WIDTH
+  const y = saved ? saved.y : disp.workArea.y
+  const p = clampToDisplay(disp, x, y, POSTIT_WIDTH, height)
+  postitWin.setBounds({ x: p.x, y: p.y, width: POSTIT_WIDTH, height })
+}
+
+function createPostitWindow() {
+  const disp = postitDisplay()
+  const { workArea } = disp
+  const width = POSTIT_WIDTH
+  const saved = store.data.settings.postitPos
+  const initial = clampToDisplay(
+    disp,
+    saved ? saved.x : workArea.x + workArea.width - width,
+    saved ? saved.y : workArea.y,
+    width,
+    workArea.height
+  )
   postitWin = new BrowserWindow({
-    x: saved ? saved.x : workArea.x + workArea.width - width,
-    y: saved ? saved.y : workArea.y,
+    x: initial.x,
+    y: initial.y,
     width,
     height: workArea.height,
     frame: false,
@@ -261,11 +304,38 @@ function createPostitWindow() {
     moveTimer = setTimeout(() => {
       if (!postitWin || postitWin.isDestroyed()) return
       const [x, y] = postitWin.getPosition()
+      const b = postitWin.getBounds()
+      // 옮겨 간 모니터를 기억해서, 다음 실행과 모니터 구성 변경 때도 그 화면에만 뜨게 한다
+      const disp = screen.getDisplayNearestPoint({
+        x: Math.round(x + b.width / 2),
+        y: Math.round(y + b.height / 2)
+      })
       store.data.settings.postitPos = { x, y }
+      store.data.settings.postitDisplayId = disp.id
       store.save()
     }, 500)
   })
   postitWin.on('closed', () => { postitWin = null })
+}
+
+// 모니터를 꽂거나 빼거나 해상도가 바뀌면 위젯이 경계에 걸치거나 화면 밖으로 나갈 수 있다
+function watchDisplays() {
+  const reflow = () => {
+    if (!postitWin || postitWin.isDestroyed()) return
+    const disp = postitDisplay()
+    // 저장된 위치가 대상 모니터 밖이면 위치 기억을 버리고 기본 자리로 되돌린다
+    const saved = store.data.settings.postitPos
+    if (saved) {
+      const wa = disp.workArea
+      const inside = saved.x >= wa.x - POSTIT_WIDTH && saved.x <= wa.x + wa.width &&
+        saved.y >= wa.y - 200 && saved.y <= wa.y + wa.height
+      if (!inside) store.data.settings.postitPos = null
+    }
+    placePostit(disp)
+  }
+  screen.on('display-added', reflow)
+  screen.on('display-removed', reflow)
+  screen.on('display-metrics-changed', reflow)
 }
 
 // ---------- 사이렌 ----------
@@ -447,9 +517,13 @@ async function getSchemaFor(token, dbId) {
 
 async function syncNotion() {
   const { notionToken, notionDb } = store.data.settings
-  if (!notionToken || !notionDb) return { ok: false, error: '노션 토큰/DB가 설정되지 않았습니다' }
-  if (notionBusy) return { ok: false, error: '동기화 진행 중' }
-  notionBusy = true
+  if (!notionToken || !notionDb) return recordSync({ ok: false, error: '노션 토큰/DB가 설정되지 않았습니다' })
+  // 이전 동기화가 끝나지 않은 채 멈췄으면(응답 없는 소켓 등) 잠금을 풀고 새로 시도한다.
+  // 잠금을 영구히 잡고 있으면 이후 모든 자동 동기화가 조용히 무시된다.
+  if (notionBusyAt && Date.now() - notionBusyAt < SYNC_STUCK_MS) {
+    return recordSync({ ok: false, error: '동기화 진행 중' })
+  }
+  notionBusyAt = Date.now()
   try {
     const schema = await getSchemaFor(notionToken, notionDb)
     const assigneeId = store.data.settings.notionAssignee?.id || null
@@ -516,12 +590,30 @@ async function syncNotion() {
     for (const k of Object.keys(log)) if (k < cutoffStr) delete log[k]
     store.save()
     pushTodos()
-    return { ok: true, count: pages.length, added, removed, at: Date.now() }
+    return recordSync({ ok: true, count: pages.length, added, removed, at: Date.now() })
   } catch (err) {
-    return { ok: false, error: String(err.message || err) }
+    return recordSync({ ok: false, error: String(err.message || err) })
   } finally {
-    notionBusy = false
+    notionBusyAt = 0
   }
+}
+
+// 자동 동기화는 결과를 버리기 때문에, 실패해도 사용자에게 아무 신호가 가지 않았다.
+// 마지막 결과를 남겨 트레이 툴팁과 대시보드가 읽을 수 있게 한다.
+function recordSync(result) {
+  lastSync = { at: Date.now(), ok: !!result.ok, error: result.ok ? null : result.error }
+  if (!result.ok) console.error('[notion] 동기화 실패:', result.error)
+  updateTrayTooltip()
+  if (dashboardWin && !dashboardWin.isDestroyed()) {
+    dashboardWin.webContents.send('notion:status', lastSync)
+  }
+  return result
+}
+
+function updateTrayTooltip() {
+  if (!tray || tray.isDestroyed()) return
+  const base = 'MaxAlert — 일정 사이렌'
+  tray.setToolTip(lastSync.error ? `${base}\n⚠ 노션 동기화 실패: ${lastSync.error}` : base)
 }
 
 // ---------- 기타 ----------
@@ -776,11 +868,28 @@ function registerIpc() {
     dragTimer = setInterval(() => {
       if (!postitWin || postitWin.isDestroyed()) { clearInterval(dragTimer); return }
       const c = screen.getCursorScreenPoint()
-      postitWin.setPosition(wx + c.x - startCursor.x, wy + c.y - startCursor.y)
+      const { width, height } = postitWin.getBounds()
+      // 커서가 있는 모니터 하나에만 머물도록 가둔다. 가두지 않으면 창이 경계를
+      // 걸쳐서 양쪽 모니터에 나뉘어 보인다.
+      const target = screen.getDisplayNearestPoint(c)
+      const p = clampToDisplay(target, wx + c.x - startCursor.x, wy + c.y - startCursor.y, width, height)
+      postitWin.setPosition(p.x, p.y)
     }, 16)
   })
   ipcMain.on('postit:dragEnd', () => {
     clearInterval(dragTimer)
     dragTimer = null
+    // 옮겨 간 모니터의 작업 영역 높이에 맞춰 다시 배치
+    if (postitWin && !postitWin.isDestroyed()) {
+      const b = postitWin.getBounds()
+      const disp = screen.getDisplayNearestPoint({
+        x: Math.round(b.x + b.width / 2),
+        y: Math.round(b.y + b.height / 2)
+      })
+      store.data.settings.postitPos = { x: b.x, y: b.y }
+      store.data.settings.postitDisplayId = disp.id
+      store.save()
+      placePostit(disp)
+    }
   })
 }

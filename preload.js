@@ -20,5 +20,6 @@ contextBridge.exposeInMainWorld('api', {
   dragStart: () => ipcRenderer.send('postit:dragStart'),
   dragEnd: () => ipcRenderer.send('postit:dragEnd'),
   onTodos: (cb) => ipcRenderer.on('todos', (_e, data) => cb(data)),
+  onNotionStatus: (cb) => ipcRenderer.on('notion:status', (_e, data) => cb(data)),
   onSirenTodo: (cb) => ipcRenderer.on('siren:todo', (_e, data) => cb(data))
 })
