@@ -1,0 +1,146 @@
+# 릴리스 파이프라인 — 태그(v*) 푸시 = 빌드 시작, 게시는 사람이 클릭.
+# 산출물 한 벌(win exe + mac dmg + latest.yml + SHA256SUMS)을 maxalert-releases 에 "드래프트" 릴리스로 올린다.
+# 드래프트인 동안 플릿·카탈로그 모두 영향 없음. GitHub 에서 Publish 를 눌러야 전 플릿 자동업데이트가 시작된다.
+# (windows-nsis.yml 의 "릴리스 게시는 사람이 결정한다" 원칙 유지 — 결정 지점이 Publish 클릭으로 이동)
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}   # 드라이런: 빌드만 하고 릴리스는 만들지 않는다
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag / tauri.conf.json 버전 일치 확인
+        id: ver
+        run: |
+          VERSION=$(python3 -c "import json;print(json.load(open('src-tauri/tauri.conf.json'))['version'])")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF_NAME#v}"
+            if [[ "$TAG" != "$VERSION" ]]; then
+              echo "::error::태그(v$TAG)와 tauri.conf.json 버전($VERSION)이 다릅니다. 버전 올리는 커밋을 먼저 태그하세요."
+              exit 1
+            fi
+          fi
+
+  build-windows:
+    needs: check-version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust stable (msvc)
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Install tauri-cli
+        run: npm install -g "@tauri-apps/cli@2"
+
+      - name: Build NSIS bundle
+        run: tauri build --bundles nsis
+
+      - name: Package artifacts (latest.yml + sha256)
+        shell: pwsh
+        run: |
+          $version = "${{ needs.check-version.outputs.version }}"
+          $exe = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          if (-not $exe) { throw "NSIS output not found" }
+          New-Item -ItemType Directory -Force dist-win | Out-Null
+          $name = "MaxAlert-Setup-$version.exe"
+          Copy-Item $exe.FullName "dist-win/$name"
+          $bytes = [IO.File]::ReadAllBytes("dist-win/$name")
+          $sha512 = [Convert]::ToBase64String([System.Security.Cryptography.SHA512]::Create().ComputeHash($bytes))
+          $sha256 = (Get-FileHash "dist-win/$name" -Algorithm SHA256).Hash.ToLower()
+          $size = $bytes.Length
+          $date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+          $lines = @(
+            "version: $version",
+            "files:",
+            "  - url: $name",
+            "    sha512: $sha512",
+            "    size: $size",
+            "path: $name",
+            "sha512: $sha512",
+            "releaseDate: '$date'"
+          )
+          $lines | Set-Content dist-win/latest.yml -Encoding utf8NoBOM
+          "$sha256  $name" | Set-Content dist-win/SHA256SUMS.windows -Encoding utf8NoBOM
+          Get-Content dist-win/latest.yml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: dist-win/*
+          if-no-files-found: error
+
+  build-macos:
+    needs: check-version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust stable
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Install tauri-cli
+        run: npm install -g "@tauri-apps/cli@2"
+
+      - name: Build DMG bundle
+        run: tauri build --bundles dmg
+
+      - name: Package artifacts (dmg + sha256)
+        run: |
+          VERSION="${{ needs.check-version.outputs.version }}"
+          DMG=$(ls src-tauri/target/release/bundle/dmg/*.dmg | head -1)
+          if [ -z "$DMG" ]; then echo "DMG output not found"; exit 1; fi
+          mkdir -p dist-mac
+          NAME="MaxAlert_${VERSION}_aarch64.dmg"
+          cp "$DMG" "dist-mac/$NAME"
+          SHA256=$(shasum -a 256 "dist-mac/$NAME" | awk '{print $1}')
+          echo "$SHA256  $NAME" > dist-mac/SHA256SUMS.macos
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: dist-mac/*
+          if-no-files-found: error
+
+  publish-draft:
+    # 태그 푸시일 때만 실행 — workflow_dispatch 드라이런은 빌드 검증에서 끝난다
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [check-version, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+
+      - name: Merge SHA256SUMS
+        run: |
+          cat assets/SHA256SUMS.windows assets/SHA256SUMS.macos > assets/SHA256SUMS
+          rm assets/SHA256SUMS.windows assets/SHA256SUMS.macos
+          ls -la assets/
+
+      - name: Create draft release on maxalert-releases
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: makefriendscoltd-design/maxalert-releases
+          token: ${{ secrets.RELEASES_TOKEN }}
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          draft: true
+          files: assets/*
+          body: |
+            MaxAlert ${{ github.ref_name }} — CI 자동 빌드 (win exe + mac dmg 단일 산출물)
+
+            드래프트 상태입니다. Publish 하는 순간 전 플릿 자동업데이트 + 카탈로그 다운로드가 이 파일들로 전환됩니다.
